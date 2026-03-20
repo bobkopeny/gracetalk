@@ -42,6 +42,14 @@ export const api = {
         404: errorSchemas.notFound,
       },
     },
+    update: {
+      method: 'PATCH' as const,
+      path: '/api/personas/:id',
+      responses: {
+        200: z.custom<typeof personas.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
     delete: {
       method: 'DELETE' as const,
       path: '/api/personas/:id',

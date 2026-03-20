@@ -118,6 +118,7 @@ async def entrypoint(ctx: JobContext) -> None:
         "A skeptical but open-minded person willing to have a respectful conversation.",
     )
     conversation_id: int | None = metadata.get("conversationId")
+    persona_voice: str = metadata.get("personaVoice", os.environ.get("XAI_VOICE", "Eve"))
     prior_messages: list[dict] = metadata.get("messages", [])
 
     logger.info(
@@ -138,12 +139,10 @@ async def entrypoint(ctx: JobContext) -> None:
         elif role == "assistant":
             initial_ctx.add_message(role="assistant", content=content)
 
-    voice = os.environ.get("XAI_VOICE", "Eve")
-
     session = AgentSession(
         llm=xai.realtime.RealtimeModel(
             model=os.environ.get("XAI_REALTIME_MODEL", "grok-2-realtime"),
-            voice=voice,
+            voice=persona_voice,
             api_key=os.environ["XAI_API_KEY"],
         ),
     )

@@ -1,15 +1,16 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertPersonaSchema, type InsertPersona } from "@shared/models/persona";
+import { insertPersonaSchema, type InsertPersona, detectGenderFromName } from "@shared/models/persona";
 import { useCreatePersona } from "@/hooks/use-personas";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, Venus, Mars } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 export function CreatePersonaDialog() {
   const [open, setOpen] = useState(false);
@@ -21,8 +22,20 @@ export function CreatePersonaDialog() {
     defaultValues: {
       name: "",
       description: "",
+      gender: "female",
     },
   });
+
+  const gender = form.watch("gender");
+
+  // Auto-detect gender when name changes
+  const handleNameChange = (name: string) => {
+    form.setValue("name", name);
+    if (name.trim().length >= 2) {
+      const detected = detectGenderFromName(name);
+      form.setValue("gender", detected);
+    }
+  };
 
   function onSubmit(data: InsertPersona) {
     createPersona.mutate(data, {
@@ -65,12 +78,55 @@ export function CreatePersonaDialog() {
                 <FormItem>
                   <FormLabel>Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g. Uncle Bob" {...field} />
+                    <Input
+                      placeholder="e.g. Uncle Bob"
+                      {...field}
+                      onChange={(e) => handleNameChange(e.target.value)}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
+            {/* Gender / Voice toggle */}
+            <FormField
+              control={form.control}
+              name="gender"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Voice</FormLabel>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => field.onChange("female")}
+                      className={cn(
+                        "flex-1 flex items-center justify-center gap-2 rounded-lg border py-2 text-sm font-medium transition-colors",
+                        field.value === "female"
+                          ? "border-pink-400 bg-pink-50 text-pink-600"
+                          : "border-border text-muted-foreground hover:border-pink-200 hover:text-pink-500"
+                      )}
+                    >
+                      <Venus className="w-4 h-4" /> Female (Eve)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => field.onChange("male")}
+                      className={cn(
+                        "flex-1 flex items-center justify-center gap-2 rounded-lg border py-2 text-sm font-medium transition-colors",
+                        field.value === "male"
+                          ? "border-blue-400 bg-blue-50 text-blue-600"
+                          : "border-border text-muted-foreground hover:border-blue-200 hover:text-blue-500"
+                      )}
+                    >
+                      <Mars className="w-4 h-4" /> Male (Rex)
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Auto-detected from name — you can change it</p>
+                </FormItem>
+              )}
+            />
+
             <FormField
               control={form.control}
               name="description"
@@ -78,10 +134,10 @@ export function CreatePersonaDialog() {
                 <FormItem>
                   <FormLabel>Description & Beliefs</FormLabel>
                   <FormControl>
-                    <Textarea 
-                      placeholder="Describe their worldview, resistance points, and personality..." 
+                    <Textarea
+                      placeholder="Describe their worldview, resistance points, and personality..."
                       className="min-h-[100px]"
-                      {...field} 
+                      {...field}
                     />
                   </FormControl>
                   <FormMessage />

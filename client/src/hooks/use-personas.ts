@@ -47,6 +47,26 @@ export function useCreatePersona() {
   });
 }
 
+export function useUpdatePersona() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, gender }: { id: number; gender: "female" | "male" }) => {
+      const url = buildUrl(api.personas.update.path, { id });
+      const res = await fetch(url, {
+        method: api.personas.update.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gender }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to update persona");
+      return api.personas.update.responses[200].parse(await res.json());
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.personas.list.path] });
+    },
+  });
+}
+
 export function useDeletePersona() {
   const queryClient = useQueryClient();
   return useMutation({

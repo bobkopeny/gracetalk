@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
+import { genderToVoice } from "@shared/models/persona";
 import { z } from "zod";
 import OpenAI from "openai";
 import { ensureCompatibleFormat, speechToText } from "./replit_integrations/audio";
@@ -64,6 +65,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(404).json({ message: "Persona not found" });
     }
     res.json(persona);
+  });
+
+  app.patch(api.personas.update.path, requireAuth, async (req, res) => {
+    const persona = await storage.getPersona(Number(req.params.id));
+    if (!persona || persona.userId !== (req.user as any).id) {
+      return res.status(404).json({ message: "Persona not found" });
+    }
+    const { gender } = req.body;
+    if (gender !== "female" && gender !== "male") {
+      return res.status(400).json({ message: "gender must be 'female' or 'male'" });
+    }
+    const updated = await storage.updatePersona(Number(req.params.id), { gender });
+    res.json(updated);
   });
 
   app.delete(api.personas.delete.path, requireAuth, async (req, res) => {
@@ -366,6 +380,7 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
       metadata: JSON.stringify({
         personaName: persona.name,
         personaDescription: persona.description,
+        personaVoice: genderToVoice(persona.gender ?? "female"),
         conversationId: conversation.id,
         messages: messageHistory,
       }),
