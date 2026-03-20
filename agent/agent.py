@@ -1,13 +1,12 @@
 """
 GraceTalk LiveKit Voice Agent
-Powered by xAI Grok (LLM) + OpenAI Whisper (STT) + OpenAI TTS via LiveKit Agents
+Powered by xAI Grok Realtime Voice API via LiveKit Agents
 
 Requires environment variables:
     LIVEKIT_URL              - wss://your-project.livekit.cloud
     LIVEKIT_API_KEY          - LiveKit project API key
     LIVEKIT_API_SECRET       - LiveKit project API secret
     XAI_API_KEY              - xAI API key (https://console.x.ai/)
-    OPENAI_API_KEY           - OpenAI API key (for Whisper STT + TTS)
     GRACETALK_API_URL        - https://gracetalk-production.up.railway.app
     GRACETALK_AGENT_SECRET   - shared secret for agent→app API callbacks
 """
@@ -26,8 +25,7 @@ from livekit.agents import (
     cli,
 )
 from livekit.agents import llm as agent_llm
-from livekit.plugins import silero
-from livekit.plugins import openai as lk_openai
+from livekit.plugins import xai
 
 load_dotenv()
 
@@ -140,18 +138,13 @@ async def entrypoint(ctx: JobContext) -> None:
         elif role == "assistant":
             initial_ctx.add_message(role="assistant", content=content)
 
-    # Build the voice pipeline
+    voice = os.environ.get("XAI_VOICE", "Eve")
+
     session = AgentSession(
-        vad=silero.VAD.load(),
-        stt=lk_openai.STT(model="whisper-1"),
-        llm=lk_openai.LLM(
-            model=os.environ.get("XAI_MODEL", "grok-3"),
-            base_url="https://api.x.ai/v1",
+        llm=xai.realtime.RealtimeModel(
+            model=os.environ.get("XAI_REALTIME_MODEL", "grok-2-realtime"),
+            voice=voice,
             api_key=os.environ["XAI_API_KEY"],
-        ),
-        tts=lk_openai.TTS(
-            model=os.environ.get("OPENAI_TTS_MODEL", "tts-1"),
-            voice=os.environ.get("OPENAI_TTS_VOICE", "alloy"),
         ),
     )
 
