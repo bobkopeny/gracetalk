@@ -192,20 +192,33 @@ async def entrypoint(ctx: JobContext) -> None:
 
     logger.info("Agent session started for room: %s", ctx.room.name)
 
-    # Session-level transcript capture (primary mechanism for realtime models)
-    @session.on("user_speech_committed")
-    def on_user_speech(msg: agent_llm.ChatMessage) -> None:
-        text = msg.text_content
-        logger.info("user_speech_committed: conv=%s text=%r", conversation_id, text)
-        if conversation_id and text:
-            save_message_to_app(conversation_id, "user", text)
+    # Session-level transcript capture — use conversation_item_added (correct event in livekit-agents 1.x)
+    # This fires for both user and assistant messages committed to the conversation history.
+    @session.on("conversation_item_added")
+    def on_conversation_item(ev) -> None:
+        try:
+            item = ev.item if hasattr(ev, "item") else ev
+            role = getattr(item, "role", None)
+            # text_content may be a property or callable depending on SDK version
+            tc = getattr(item, "text_content", None)
+            text = tc() if callable(tc) else tc
+            logger.info("conversation_item_added: conv=%s role=%s text=%r", conversation_id, role, text)
+            if conversation_id and role in ("user", "assistant") and text:
+                save_message_to_app(conversation_id, role, text)
+        except Exception as exc:
+            logger.warning("Error in conversation_item_added handler: %s", exc)
 
-    @session.on("agent_speech_committed")
-    def on_agent_speech(msg: agent_llm.ChatMessage) -> None:
-        text = msg.text_content
-        logger.info("agent_speech_committed: conv=%s text=%r", conversation_id, text)
-        if conversation_id and text:
-            save_message_to_app(conversation_id, "assistant", text)
+    # Also listen for user_input_transcribed as a fallback for user speech in realtime mode
+    @session.on("user_input_transcribed")
+    def on_user_transcribed(ev) -> None:
+        try:
+            is_final = getattr(ev, "is_final", True)
+            transcript = getattr(ev, "transcript", None)
+            logger.info("user_input_transcribed: conv=%s final=%s text=%r", conversation_id, is_final, transcript)
+            if conversation_id and is_final and transcript:
+                save_message_to_app(conversation_id, "user", transcript)
+        except Exception as exc:
+            logger.warning("Error in user_input_transcribed handler: %s", exc)
 
     # Trigger the persona to greet the user first (system prompt already instructs agent to speak first)
     try:
