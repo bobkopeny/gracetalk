@@ -164,7 +164,6 @@ async def entrypoint(ctx: JobContext) -> None:
     await session.start(
         room=ctx.room,
         agent=WitnessPersona(persona_name, persona_description, conversation_id),
-        fnc_ctx=None,
         chat_ctx=initial_ctx if prior_messages else None,
     )
 

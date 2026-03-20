@@ -246,17 +246,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const messages = await storage.getMessages(conversationId);
     const persona = await storage.getPersona(conversation.personaId);
 
-    // System prompt for coaching
-    const feedbackPrompt = `Analyze the following conversation between a Christian witness (User) and a ${persona?.name} (Assistant).
-    Persona Description: ${persona?.description}.
-    
-    Provide concrete, encouraging feedback to the Christian witness.
-    1. What did they do well?
-    2. How could they improve their approach?
-    3. Suggest specific scriptures or testimonies that might have been effective.
-    4. Did they listen well?
-    
-    Keep the tone constructive and uplifting.`;
+    // System prompt for coaching — returns structured JSON
+    const feedbackPrompt = `You are a compassionate biblical coach analyzing a witnessing conversation.
+Analyze the conversation between a Christian witness (User) and ${persona?.name} (Assistant).
+Persona Description: ${persona?.description}.
+
+Return ONLY valid JSON with exactly these four fields (no markdown, no code fences):
+{
+  "generalFeedback": "2-3 sentence overall analysis of how the conversation went",
+  "strengths": "markdown bullet list of 2-4 things the witness did well",
+  "improvements": "markdown bullet list of 2-4 specific ways to improve approach",
+  "biblicalReferences": "markdown list of 2-4 specific scriptures or examples that could have been effective, with brief explanation of why"
+}
+Keep the tone warm, constructive, and encouraging.`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -266,10 +268,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       ],
     });
 
-    const feedbackContent = response.choices[0].message.content || "Could not generate feedback.";
-    const feedback = await storage.createFeedback(conversationId, feedbackContent);
-    
-    res.status(201).json(feedback);
+    const raw = response.choices[0].message.content || "{}";
+    // Store raw JSON string in content field
+    const feedback = await storage.createFeedback(conversationId, raw);
+
+    // Parse and return structured fields
+    let parsed: any = {};
+    try { parsed = JSON.parse(raw); } catch { parsed = { generalFeedback: raw, strengths: "", improvements: "", biblicalReferences: "" }; }
+    res.status(201).json({ ...feedback, ...parsed });
   });
 
   app.get(api.conversations.feedback.get.path, requireAuth, async (req, res) => {
@@ -283,8 +289,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (!feedback) {
       return res.status(404).json({ message: "Feedback not found" });
     }
-    
-    res.json(feedback);
+
+    let parsed: any = {};
+    try { parsed = JSON.parse(feedback.content); } catch { parsed = { generalFeedback: feedback.content, strengths: "", improvements: "", biblicalReferences: "" }; }
+    res.json({ ...feedback, ...parsed });
   });
 
   // --- Demo (no auth required) ---
