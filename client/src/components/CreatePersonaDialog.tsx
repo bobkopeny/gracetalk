@@ -21,8 +21,6 @@ export function CreatePersonaDialog() {
     defaultValues: {
       name: "",
       description: "",
-      traits: [],
-      difficulty: 1,
     },
   });
 

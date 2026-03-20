@@ -13,6 +13,7 @@ export const personas = pgTable("personas", {
 
 export const insertPersonaSchema = createInsertSchema(personas).omit({
   id: true,
+  userId: true,
   createdAt: true,
 });
 
