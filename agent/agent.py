@@ -75,13 +75,17 @@ class WitnessPersona(Agent):
         persona_name: str,
         persona_description: str,
         conversation_id: int | None,
+        chat_ctx: agent_llm.ChatContext | None = None,
     ) -> None:
-        super().__init__(
+        kwargs = dict(
             instructions=SYSTEM_PROMPT_TEMPLATE.format(
                 persona_name=persona_name,
                 persona_description=persona_description,
             )
         )
+        if chat_ctx is not None:
+            kwargs["chat_ctx"] = chat_ctx
+        super().__init__(**kwargs)
         self._persona_name = persona_name
         self._conversation_id = conversation_id
         logger.info("WitnessPersona created: %s (conv=%s)", persona_name, conversation_id)
@@ -163,8 +167,12 @@ async def entrypoint(ctx: JobContext) -> None:
 
     await session.start(
         room=ctx.room,
-        agent=WitnessPersona(persona_name, persona_description, conversation_id),
-        chat_ctx=initial_ctx if prior_messages else None,
+        agent=WitnessPersona(
+            persona_name,
+            persona_description,
+            conversation_id,
+            chat_ctx=initial_ctx if prior_messages else None,
+        ),
     )
 
     logger.info("Agent session started for room: %s", ctx.room.name)
