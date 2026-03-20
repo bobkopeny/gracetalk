@@ -175,7 +175,7 @@ export default function ChatSession() {
       {/* LiveKit Voice Call Panel */}
       {voiceCallOpen && (
         <div className="bg-muted/30 border-t border-border p-4 shrink-0">
-          <LiveKitVoiceCall conversationId={conversationId} />
+          <LiveKitVoiceCall conversationId={conversationId} onTranscriptsUpdated={refetch} />
         </div>
       )}
 

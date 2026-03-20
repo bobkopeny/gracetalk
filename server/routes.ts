@@ -311,6 +311,21 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
     res.json({ role: "assistant", content: reply });
   });
 
+  // --- Agent callback (agent saves voice transcripts back to the DB) ---
+  app.post("/api/agent/conversations/:id/messages", async (req, res) => {
+    const secret = req.headers["x-agent-secret"];
+    if (!secret || secret !== process.env.GRACETALK_AGENT_SECRET) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const conversationId = Number(req.params.id);
+    const { role, content } = req.body;
+    if (!role || !content) {
+      return res.status(400).json({ message: "role and content required" });
+    }
+    const message = await storage.createMessage(conversationId, role, content);
+    res.status(201).json(message);
+  });
+
   // --- LiveKit Voice Agent ---
   app.post("/api/livekit/token", requireAuth, async (req, res) => {
     const { conversationId } = req.body;
@@ -339,12 +354,20 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
     const roomName = `conversation-${conversationId}-${Date.now()}`;
     const identity = (req.user as any).id;
 
+    // Pass recent messages so the agent has full conversation context
+    const recentMessages = await storage.getMessages(conversationId);
+    const messageHistory = recentMessages.slice(-30).map(m => ({
+      role: m.role,
+      content: m.content,
+    }));
+
     const at = new AccessToken(apiKey, apiSecret, {
       identity,
       metadata: JSON.stringify({
         personaName: persona.name,
         personaDescription: persona.description,
         conversationId: conversation.id,
+        messages: messageHistory,
       }),
     });
 

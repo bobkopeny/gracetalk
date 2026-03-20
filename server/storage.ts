@@ -1,7 +1,7 @@
 import { users, personas, conversations, messages, feedbacks } from "@shared/schema";
 import type { User, UpsertUser, Persona, InsertPersona, Conversation, Message, Feedback } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, count, sql } from "drizzle-orm";
 
 export interface IStorage {
   // Auth
@@ -17,7 +17,7 @@ export interface IStorage {
   // Chat
   createConversation(userId: string, personaId: number, title: string): Promise<Conversation>;
   getConversation(id: number): Promise<Conversation | undefined>;
-  listConversations(userId: string): Promise<(Conversation & { personaName: string })[]>;
+  listConversations(userId: string): Promise<(Conversation & { personaName: string; messageCount: number; lastMessage: string | null })[]>;
   createMessage(conversationId: number, role: string, content: string): Promise<Message>;
   getMessages(conversationId: number): Promise<Message[]>;
 
@@ -109,20 +109,31 @@ export class DatabaseStorage implements IStorage {
     return conversation;
   }
 
-  async listConversations(userId: string): Promise<(Conversation & { personaName: string })[]> {
+  async listConversations(userId: string): Promise<(Conversation & { personaName: string; messageCount: number; lastMessage: string | null })[]> {
     const rows = await db
       .select({
         conversation: conversations,
         personaName: personas.name,
+        messageCount: count(messages.id),
+        lastMessage: sql<string | null>`(
+          SELECT content FROM messages
+          WHERE conversation_id = ${conversations.id}
+          ORDER BY created_at DESC
+          LIMIT 1
+        )`,
       })
       .from(conversations)
       .innerJoin(personas, eq(conversations.personaId, personas.id))
+      .leftJoin(messages, eq(messages.conversationId, conversations.id))
       .where(eq(conversations.userId, userId))
+      .groupBy(conversations.id, personas.name)
       .orderBy(desc(conversations.createdAt));
-    
+
     return rows.map(row => ({
       ...row.conversation,
       personaName: row.personaName,
+      messageCount: row.messageCount,
+      lastMessage: row.lastMessage,
     }));
   }
 

@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 
 interface LiveKitVoiceCallProps {
   conversationId: number;
+  onTranscriptsUpdated?: () => void;
 }
 
 function VoiceCallActive({ onHangup }: { onHangup: () => void }) {
@@ -68,7 +69,7 @@ function VoiceCallActive({ onHangup }: { onHangup: () => void }) {
   );
 }
 
-export function LiveKitVoiceCall({ conversationId }: LiveKitVoiceCallProps) {
+export function LiveKitVoiceCall({ conversationId, onTranscriptsUpdated }: LiveKitVoiceCallProps) {
   const [token, setToken] = useState<string | null>(null);
   const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -105,7 +106,9 @@ export function LiveKitVoiceCall({ conversationId }: LiveKitVoiceCallProps) {
     setIsActive(false);
     setToken(null);
     setServerUrl(null);
-  }, []);
+    // Give the agent a moment to save the final transcript, then refresh
+    setTimeout(() => onTranscriptsUpdated?.(), 1500);
+  }, [onTranscriptsUpdated]);
 
   if (!isActive || !token || !serverUrl) {
     return (

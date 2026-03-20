@@ -2,21 +2,20 @@
 GraceTalk LiveKit Voice Agent
 Powered by xAI Grok (LLM) + Deepgram (STT + TTS) via LiveKit Agents
 
-Run with:
-    python agent.py start
-
 Requires environment variables:
-    LIVEKIT_URL         - wss://your-project.livekit.cloud
-    LIVEKIT_API_KEY     - LiveKit project API key
-    LIVEKIT_API_SECRET  - LiveKit project API secret
-    XAI_API_KEY         - xAI API key (https://console.x.ai/)
-    DEEPGRAM_API_KEY    - Deepgram API key (https://console.deepgram.com/)
+    LIVEKIT_URL              - wss://your-project.livekit.cloud
+    LIVEKIT_API_KEY          - LiveKit project API key
+    LIVEKIT_API_SECRET       - LiveKit project API secret
+    XAI_API_KEY              - xAI API key (https://console.x.ai/)
+    DEEPGRAM_API_KEY         - Deepgram API key (https://console.deepgram.com/)
+    GRACETALK_API_URL        - https://gracetalk-production.up.railway.app
+    GRACETALK_AGENT_SECRET   - shared secret for agent→app API callbacks
 """
 
-import asyncio
 import json
 import logging
 import os
+import urllib.request
 
 from dotenv import load_dotenv
 from livekit.agents import (
@@ -26,6 +25,7 @@ from livekit.agents import (
     WorkerOptions,
     cli,
 )
+from livekit.agents import llm as agent_llm
 from livekit.plugins import deepgram, silero
 from livekit.plugins import openai as lk_openai
 
@@ -45,10 +45,39 @@ If they make a compelling point, you can acknowledge it — but stay true to you
 Do not use markdown, bullet points, or lists in your responses."""
 
 
-class WitnessPersona(Agent):
-    """A LiveKit Agent that embodies an AI persona for faith-sharing practice."""
+def save_message_to_app(conversation_id: int, role: str, content: str) -> None:
+    """POST a voice transcript back to the GraceTalk app for persistent storage."""
+    api_url = os.environ.get("GRACETALK_API_URL", "").rstrip("/")
+    secret = os.environ.get("GRACETALK_AGENT_SECRET", "")
+    if not api_url or not secret:
+        return
 
-    def __init__(self, persona_name: str, persona_description: str) -> None:
+    try:
+        payload = json.dumps({"role": role, "content": content}).encode()
+        req = urllib.request.Request(
+            f"{api_url}/api/agent/conversations/{conversation_id}/messages",
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "X-Agent-Secret": secret,
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=5) as r:
+            r.read()
+    except Exception as exc:
+        logger.warning("Failed to save message to app: %s", exc)
+
+
+class WitnessPersona(Agent):
+    """LiveKit Agent that embodies a persona and saves transcripts back to the app."""
+
+    def __init__(
+        self,
+        persona_name: str,
+        persona_description: str,
+        conversation_id: int | None,
+    ) -> None:
         super().__init__(
             instructions=SYSTEM_PROMPT_TEMPLATE.format(
                 persona_name=persona_name,
@@ -56,48 +85,70 @@ class WitnessPersona(Agent):
             )
         )
         self._persona_name = persona_name
-        logger.info("WitnessPersona created: %s", persona_name)
+        self._conversation_id = conversation_id
+        logger.info("WitnessPersona created: %s (conv=%s)", persona_name, conversation_id)
+
+    async def on_user_turn_completed(
+        self, turn_ctx: agent_llm.ChatContext, new_message: agent_llm.ChatMessage
+    ) -> None:
+        """Called after the user finishes speaking — save their transcript."""
+        if self._conversation_id and new_message.text_content:
+            save_message_to_app(self._conversation_id, "user", new_message.text_content)
+
+    async def on_agent_turn_completed(
+        self, turn_ctx: agent_llm.ChatContext, new_message: agent_llm.ChatMessage
+    ) -> None:
+        """Called after the agent finishes speaking — save its transcript."""
+        if self._conversation_id and new_message.text_content:
+            save_message_to_app(self._conversation_id, "assistant", new_message.text_content)
 
 
 async def entrypoint(ctx: JobContext) -> None:
-    """Entry point called by LiveKit when a participant joins the room."""
+    """Entry point called by LiveKit when a participant joins a room."""
     await ctx.connect()
 
-    # Parse persona metadata from the room (set when the token was created)
+    # Parse room metadata (set by the server when creating the token)
     metadata: dict = {}
     try:
         metadata = json.loads(ctx.room.metadata or "{}")
     except json.JSONDecodeError:
         logger.warning("Could not parse room metadata; using defaults.")
 
-    persona_name = metadata.get("personaName", "Alex")
-    persona_description = metadata.get(
+    persona_name: str = metadata.get("personaName", "Alex")
+    persona_description: str = metadata.get(
         "personaDescription",
         "A skeptical but open-minded person willing to have a respectful conversation.",
     )
+    conversation_id: int | None = metadata.get("conversationId")
+    prior_messages: list[dict] = metadata.get("messages", [])
 
     logger.info(
-        "Starting session | persona=%s | conversation=%s",
+        "Starting session | persona=%s | conversation=%s | prior_messages=%d",
         persona_name,
-        metadata.get("conversationId", "unknown"),
+        conversation_id,
+        len(prior_messages),
     )
+
+    # Build initial chat context from prior text conversation so the agent
+    # has full context when the user switches from text to voice.
+    initial_ctx = agent_llm.ChatContext()
+    for msg in prior_messages:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+        if role == "user":
+            initial_ctx.add_message(role="user", content=content)
+        elif role == "assistant":
+            initial_ctx.add_message(role="assistant", content=content)
 
     # Build the voice pipeline
     session = AgentSession(
-        # Voice Activity Detection
         vad=silero.VAD.load(),
-        # Speech-to-Text via Deepgram
-        stt=deepgram.STT(
-            model="nova-2",
-            language="en-US",
-        ),
-        # LLM via xAI Grok (OpenAI-compatible API)
+        stt=deepgram.STT(model="nova-2", language="en-US"),
         llm=lk_openai.LLM(
             model=os.environ.get("XAI_MODEL", "grok-3"),
             base_url="https://api.x.ai/v1",
             api_key=os.environ["XAI_API_KEY"],
         ),
-        # Text-to-Speech via Deepgram Aura
         tts=deepgram.TTS(
             model=os.environ.get("DEEPGRAM_TTS_MODEL", "aura-asteria-en"),
         ),
@@ -105,7 +156,9 @@ async def entrypoint(ctx: JobContext) -> None:
 
     await session.start(
         room=ctx.room,
-        agent=WitnessPersona(persona_name, persona_description),
+        agent=WitnessPersona(persona_name, persona_description, conversation_id),
+        fnc_ctx=None,
+        chat_ctx=initial_ctx if prior_messages else None,
     )
 
     logger.info("Agent session started for room: %s", ctx.room.name)
@@ -113,8 +166,5 @@ async def entrypoint(ctx: JobContext) -> None:
 
 if __name__ == "__main__":
     cli.run_app(
-        WorkerOptions(
-            entrypoint_fnc=entrypoint,
-            worker_type="room",
-        )
+        WorkerOptions(entrypoint_fnc=entrypoint)
     )

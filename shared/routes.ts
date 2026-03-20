@@ -56,7 +56,7 @@ export const api = {
       method: 'GET' as const,
       path: '/api/conversations',
       responses: {
-        200: z.array(z.custom<typeof conversations.$inferSelect & { personaName: string }>()),
+        200: z.array(z.custom<typeof conversations.$inferSelect & { personaName: string; messageCount: number; lastMessage: string | null }>()),
       },
     },
     create: {
