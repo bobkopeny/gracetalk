@@ -77,6 +77,9 @@ export function LiveKitVoiceCall({ conversationId, personaId, onTranscriptsUpdat
   const startCall = useCallback(async () => {
     setIsConnecting(true);
     try {
+      // Explicitly request mic permission so the browser dialog appears immediately
+      await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+
       const endpoint = isDemo ? "/api/demo/livekit/token" : "/api/livekit/token";
       const body = isDemo ? { personaId } : { conversationId };
       const res = await fetch(endpoint, {
@@ -96,9 +99,13 @@ export function LiveKitVoiceCall({ conversationId, personaId, onTranscriptsUpdat
       setServerUrl(data.url);
       setIsActive(true);
       onActiveChange?.(true);
-    } catch (e) {
-      console.error("LiveKit token error:", e);
-      alert("Could not start voice call. Check LiveKit configuration.");
+    } catch (e: any) {
+      console.error("LiveKit voice call error:", e);
+      if (e?.name === "NotAllowedError" || e?.name === "PermissionDeniedError") {
+        alert("Microphone access was denied. Please allow microphone access in your browser settings and try again.");
+      } else {
+        alert("Could not start voice call: " + (e?.message ?? "Unknown error"));
+      }
     } finally {
       setIsConnecting(false);
     }
