@@ -77,8 +77,18 @@ export function LiveKitVoiceCall({ conversationId, personaId, onTranscriptsUpdat
   const startCall = useCallback(async () => {
     setIsConnecting(true);
     try {
-      // Explicitly request mic permission so the browser dialog appears immediately
-      await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      // Request mic permission — non-fatal if device not found (listen-only mode)
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      } catch (micErr: any) {
+        if (micErr?.name === "NotAllowedError" || micErr?.name === "PermissionDeniedError") {
+          alert("Microphone access was denied. Please allow microphone access in your browser settings and try again.");
+          setIsConnecting(false);
+          return;
+        }
+        // NotFoundError or other — no mic available, proceed in listen-only mode
+        console.warn("No microphone found, connecting in listen-only mode:", micErr?.message);
+      }
 
       const endpoint = isDemo ? "/api/demo/livekit/token" : "/api/livekit/token";
       const body = isDemo ? { personaId } : { conversationId };
@@ -101,11 +111,7 @@ export function LiveKitVoiceCall({ conversationId, personaId, onTranscriptsUpdat
       onActiveChange?.(true);
     } catch (e: any) {
       console.error("LiveKit voice call error:", e);
-      if (e?.name === "NotAllowedError" || e?.name === "PermissionDeniedError") {
-        alert("Microphone access was denied. Please allow microphone access in your browser settings and try again.");
-      } else {
-        alert("Could not start voice call: " + (e?.message ?? "Unknown error"));
-      }
+      alert("Could not start voice call: " + (e?.message ?? "Unknown error"));
     } finally {
       setIsConnecting(false);
     }
