@@ -26,11 +26,15 @@ export type InsertPersona = z.infer<typeof insertPersonaSchema>;
 
 // All available xAI Grok realtime voices
 export const XAI_VOICES = [
-  { id: "Aria", label: "Aria", gender: "female" },
-  { id: "Eve",  label: "Eve",  gender: "female" },
-  { id: "Sal",  label: "Sal",  gender: "female" },
-  { id: "Leo",  label: "Leo",  gender: "male"   },
-  { id: "Rex",  label: "Rex",  gender: "male"   },
+  { id: "Aria",   label: "Aria",   gender: "female" },
+  { id: "Eve",    label: "Eve",    gender: "female" },
+  { id: "Cove",   label: "Cove",   gender: "female" },
+  { id: "Sal",    label: "Sal",    gender: "female" },
+  { id: "Aurora", label: "Aurora", gender: "female" },
+  { id: "Leo",    label: "Leo",    gender: "male"   },
+  { id: "Rex",    label: "Rex",    gender: "male"   },
+  { id: "Orion",  label: "Orion",  gender: "male"   },
+  { id: "Vale",   label: "Vale",   gender: "male"   },
 ] as const;
 
 export type XaiVoice = typeof XAI_VOICES[number]["id"];

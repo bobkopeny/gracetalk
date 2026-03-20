@@ -81,7 +81,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       updateData.gender = gender;
     }
     if (voice !== undefined) {
-      const validVoices = ["Aria", "Eve", "Sal", "Leo", "Rex"];
+      const validVoices = ["Aria", "Eve", "Cove", "Sal", "Aurora", "Leo", "Rex", "Orion", "Vale"];
       if (!validVoices.includes(voice)) {
         return res.status(400).json({ message: "invalid voice" });
       }

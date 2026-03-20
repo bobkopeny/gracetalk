@@ -44,7 +44,7 @@ If they make a compelling point, you can acknowledge it — but stay true to you
 Do not use markdown, bullet points, or lists in your responses.
 Do not use profanity, swearing, or crude language under any circumstances — regardless of your persona's background.
 
-IMPORTANT: When the conversation begins, YOU speak first. Open with a casual, natural greeting as your character — something like "Hey, how's it going?" or a brief remark that fits your persona. Do not wait for the user to speak first."""
+IMPORTANT: When the conversation begins, YOU speak first with ONE brief greeting as your character — something like "Hey, how's it going?" or a short remark that fits your persona. Do not wait for the user to speak first. After that initial greeting, ONLY respond when the user speaks to you. Never re-introduce yourself or re-greet mid-conversation."""
 
 
 def save_message_to_app(conversation_id: int, role: str, content: str) -> None:
