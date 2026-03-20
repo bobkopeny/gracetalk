@@ -5,7 +5,7 @@ import { Navigation, MobileHeader, MobileNav } from "@/components/Navigation";
 import { PersonaCard } from "@/components/PersonaCard";
 import { CreatePersonaDialog } from "@/components/CreatePersonaDialog";
 import { Button } from "@/components/ui/button";
-import { MessageSquarePlus, Clock } from "lucide-react";
+import { MessageSquarePlus, Clock, ArrowRight } from "lucide-react";
 import { useLocation, Link } from "wouter";
 import { formatDistanceToNow } from "date-fns";
 
