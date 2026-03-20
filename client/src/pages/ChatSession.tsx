@@ -107,7 +107,6 @@ export default function ChatSession() {
         <LiveKitVoiceCall
           conversationId={conversationId}
           onTranscriptsUpdated={refetch}
-          onActiveChange={setVoiceCallActive}
         />
         <Button
           variant="secondary"

@@ -105,12 +105,27 @@ async def entrypoint(ctx: JobContext) -> None:
     """Entry point called by LiveKit when a participant joins a room."""
     await ctx.connect()
 
-    # Parse room metadata (set by the server when creating the token)
+    # Parse metadata — try room metadata first (new server), then fall back
+    # to any remote participant's metadata (old server sent it there)
     metadata: dict = {}
     try:
-        metadata = json.loads(ctx.room.metadata or "{}")
+        raw = ctx.room.metadata or ""
+        if raw:
+            metadata = json.loads(raw)
     except json.JSONDecodeError:
-        logger.warning("Could not parse room metadata; using defaults.")
+        pass
+
+    if not metadata:
+        for participant in ctx.room.remote_participants.values():
+            try:
+                if participant.metadata:
+                    metadata = json.loads(participant.metadata)
+                    break
+            except json.JSONDecodeError:
+                pass
+
+    if not metadata:
+        logger.warning("No metadata found in room or participants; using defaults.")
 
     persona_name: str = metadata.get("personaName", "Alex")
     persona_description: str = metadata.get(
