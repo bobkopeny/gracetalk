@@ -22,7 +22,6 @@ from livekit.agents import (
     AgentSession,
     JobContext,
     WorkerOptions,
-    WorkerDispatchMode,
     cli,
 )
 from livekit.agents import llm as agent_llm
@@ -189,8 +188,5 @@ async def entrypoint(ctx: JobContext) -> None:
 
 if __name__ == "__main__":
     cli.run_app(
-        WorkerOptions(
-            entrypoint_fnc=entrypoint,
-            dispatch_mode=WorkerDispatchMode.EXPLICIT,
-        )
+        WorkerOptions(entrypoint_fnc=entrypoint)
     )
