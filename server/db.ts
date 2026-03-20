@@ -15,7 +15,12 @@ export const db = drizzle(pool, { schema });
 
 // Run any pending schema migrations that drizzle-kit push would handle interactively
 export async function runMigrations() {
-  await pool.query(`
-    ALTER TABLE personas ADD COLUMN IF NOT EXISTS gender VARCHAR(10) NOT NULL DEFAULT 'female';
-  `);
+  try {
+    await pool.query(`
+      ALTER TABLE personas ADD COLUMN IF NOT EXISTS gender VARCHAR(10) NOT NULL DEFAULT 'female';
+    `);
+    console.log("[db] Migration: gender column ready");
+  } catch (err: any) {
+    console.error("[db] Migration warning (non-fatal):", err?.message);
+  }
 }
