@@ -5,7 +5,7 @@ import { usePersona } from "@/hooks/use-personas";
 import { Navigation, MobileHeader } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Send, LogOut, CheckCircle2, Mic, MicOff, Phone } from "lucide-react";
+import { Loader2, Send, CheckCircle2, Mic, MicOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 import { useVoiceRecorder, useVoiceStream } from "../../replit_integrations/audio";
@@ -16,7 +16,6 @@ export default function ChatSession() {
   const conversationId = Number(id);
   const [, setLocation] = useLocation();
   const [input, setInput] = useState("");
-  const [voiceCallOpen, setVoiceCallOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { data: conversation, isLoading, refetch } = useConversation(conversationId);
@@ -105,14 +104,11 @@ export default function ChatSession() {
             <p className="text-xs text-muted-foreground mt-1">Practice Session</p>
           </div>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => setVoiceCallOpen((v) => !v)}
-          className="gap-2"
-        >
-          <Phone className="w-4 h-4" />
-          {voiceCallOpen ? "Hide Call" : "Voice Call"}
-        </Button>
+        <LiveKitVoiceCall
+          conversationId={conversationId}
+          onTranscriptsUpdated={refetch}
+          onActiveChange={setVoiceCallActive}
+        />
         <Button
           variant="secondary"
           onClick={handleEndSession}
@@ -171,13 +167,6 @@ export default function ChatSession() {
           </div>
         )}
       </div>
-
-      {/* LiveKit Voice Call Panel */}
-      {voiceCallOpen && (
-        <div className="bg-muted/30 border-t border-border p-4 shrink-0">
-          <LiveKitVoiceCall conversationId={conversationId} onTranscriptsUpdated={refetch} />
-        </div>
-      )}
 
       {/* Input Area */}
       <div className="bg-card p-4 border-t border-border shrink-0">

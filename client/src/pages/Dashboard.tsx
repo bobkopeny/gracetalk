@@ -5,7 +5,7 @@ import { Navigation, MobileHeader, MobileNav } from "@/components/Navigation";
 import { PersonaCard } from "@/components/PersonaCard";
 import { CreatePersonaDialog } from "@/components/CreatePersonaDialog";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, MessageSquarePlus, Clock } from "lucide-react";
+import { MessageSquarePlus, Clock } from "lucide-react";
 import { useLocation, Link } from "wouter";
 import { formatDistanceToNow } from "date-fns";
 
@@ -45,22 +45,19 @@ export default function Dashboard() {
             <CreatePersonaDialog />
           </div>
 
-          {/* Quick Start Personas */}
+          {/* Quick Start Personas — horizontal scroll */}
           <section>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold flex items-center gap-2">
                 <MessageSquarePlus className="w-5 h-5 text-primary" />
                 Start a New Session
               </h2>
-              <Link href="/personas">
-                <Button variant="link" className="text-primary p-0">View All <ArrowRight className="w-4 h-4 ml-1" /></Button>
-              </Link>
             </div>
-            
+
             {personasLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="flex gap-4 overflow-x-auto pb-2">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-48 rounded-xl bg-muted/50 animate-pulse" />
+                  <div key={i} className="h-48 w-64 shrink-0 rounded-xl bg-muted/50 animate-pulse" />
                 ))}
               </div>
             ) : personas?.length === 0 ? (
@@ -69,13 +66,14 @@ export default function Dashboard() {
                 <CreatePersonaDialog />
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {personas?.slice(0, 3).map((persona) => (
-                  <PersonaCard 
-                    key={persona.id} 
-                    persona={persona} 
-                    onStartChat={handleStartChat} 
-                  />
+              <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 snap-x snap-mandatory">
+                {personas?.map((persona) => (
+                  <div key={persona.id} className="shrink-0 w-72 snap-start">
+                    <PersonaCard
+                      persona={persona}
+                      onStartChat={handleStartChat}
+                    />
+                  </div>
                 ))}
               </div>
             )}

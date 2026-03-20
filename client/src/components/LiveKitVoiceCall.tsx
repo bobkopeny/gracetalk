@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 interface LiveKitVoiceCallProps {
   conversationId: number;
   onTranscriptsUpdated?: () => void;
+  onActiveChange?: (active: boolean) => void;
 }
 
 function VoiceCallActive({ onHangup }: { onHangup: () => void }) {
@@ -28,38 +29,33 @@ function VoiceCallActive({ onHangup }: { onHangup: () => void }) {
     speaking: "Speaking...",
   };
 
-  const isActive = ["listening", "thinking", "speaking"].includes(state);
+  const isLive = ["listening", "thinking", "speaking"].includes(state);
 
   return (
-    <div className="flex flex-col items-center gap-4 p-6 bg-card rounded-2xl border border-border shadow-md w-full max-w-sm mx-auto">
-      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-        Voice Call
-      </p>
-
-      <div className="w-full h-16 flex items-center justify-center">
+    <div className="flex items-center gap-3">
+      {/* Compact visualizer */}
+      <div className="w-20 h-8 flex items-center">
         <BarVisualizer
           state={state}
-          barCount={7}
+          barCount={5}
           trackRef={audioTrack}
           className="w-full"
-          options={{ minHeight: 4 }}
+          options={{ minHeight: 3 }}
         />
       </div>
 
-      <p
-        className={cn(
-          "text-sm font-medium transition-colors",
-          isActive ? "text-primary" : "text-muted-foreground"
-        )}
-      >
+      <span className={cn(
+        "text-xs font-medium hidden sm:block",
+        isLive ? "text-primary" : "text-muted-foreground"
+      )}>
         {stateLabel[state] ?? "Connected"}
-      </p>
+      </span>
 
       <DisconnectButton onClick={onHangup}>
-        <Button variant="destructive" className="gap-2 rounded-full px-6" asChild>
+        <Button variant="destructive" size="sm" className="gap-1.5 rounded-lg" asChild>
           <span>
-            <PhoneOff className="w-4 h-4" />
-            End Call
+            <PhoneOff className="w-3.5 h-3.5" />
+            End
           </span>
         </Button>
       </DisconnectButton>
@@ -69,7 +65,7 @@ function VoiceCallActive({ onHangup }: { onHangup: () => void }) {
   );
 }
 
-export function LiveKitVoiceCall({ conversationId, onTranscriptsUpdated }: LiveKitVoiceCallProps) {
+export function LiveKitVoiceCall({ conversationId, onTranscriptsUpdated, onActiveChange }: LiveKitVoiceCallProps) {
   const [token, setToken] = useState<string | null>(null);
   const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -94,21 +90,22 @@ export function LiveKitVoiceCall({ conversationId, onTranscriptsUpdated }: LiveK
       setToken(data.token);
       setServerUrl(data.url);
       setIsActive(true);
+      onActiveChange?.(true);
     } catch (e) {
       console.error("LiveKit token error:", e);
       alert("Could not start voice call. Check LiveKit configuration.");
     } finally {
       setIsConnecting(false);
     }
-  }, [conversationId]);
+  }, [conversationId, onActiveChange]);
 
   const endCall = useCallback(() => {
     setIsActive(false);
     setToken(null);
     setServerUrl(null);
-    // Give the agent a moment to save the final transcript, then refresh
+    onActiveChange?.(false);
     setTimeout(() => onTranscriptsUpdated?.(), 1500);
-  }, [onTranscriptsUpdated]);
+  }, [onTranscriptsUpdated, onActiveChange]);
 
   if (!isActive || !token || !serverUrl) {
     return (
@@ -116,12 +113,13 @@ export function LiveKitVoiceCall({ conversationId, onTranscriptsUpdated }: LiveK
         onClick={startCall}
         disabled={isConnecting}
         variant="outline"
-        className="gap-2 rounded-xl"
+        size="sm"
+        className="gap-2 rounded-lg"
       >
         {isConnecting ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
         ) : (
-          <Phone className="w-4 h-4" />
+          <Phone className="w-3.5 h-3.5" />
         )}
         {isConnecting ? "Connecting..." : "Voice Call"}
       </Button>
@@ -136,7 +134,6 @@ export function LiveKitVoiceCall({ conversationId, onTranscriptsUpdated }: LiveK
       audio={true}
       video={false}
       onDisconnected={endCall}
-      className="w-full"
     >
       <VoiceCallActive onHangup={endCall} />
     </LiveKitRoom>
