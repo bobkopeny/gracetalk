@@ -102,8 +102,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(404).json({ message: "Persona not found" });
     }
 
+    const userId = (req.user as any).id;
+
+    // Reuse the most recent empty conversation for this persona instead of
+    // accumulating duplicate blank sessions
+    const existing = await storage.listConversations(userId);
+    const emptyMatch = existing.find(
+      (c) => c.personaId === personaId && c.messageCount === 0
+    );
+    if (emptyMatch) {
+      return res.status(201).json(emptyMatch);
+    }
+
     const conversation = await storage.createConversation(
-      (req.user as any).id,
+      userId,
       personaId,
       `Chat with ${persona.name}`
     );
