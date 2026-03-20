@@ -40,7 +40,9 @@ React authentically according to your persona's beliefs and background.
 Do not break character.
 Keep your responses conversational, concise, and natural for a voice conversation (1–3 sentences).
 If they make a compelling point, you can acknowledge it — but stay true to your skepticism or beliefs.
-Do not use markdown, bullet points, or lists in your responses."""
+Do not use markdown, bullet points, or lists in your responses.
+
+IMPORTANT: When the conversation begins, YOU speak first. Open with a casual, natural greeting as your character — something like "Hey, how's it going?" or a brief remark that fits your persona. Do not wait for the user to speak first."""
 
 
 def save_message_to_app(conversation_id: int, role: str, content: str) -> None:
@@ -176,12 +178,6 @@ async def entrypoint(ctx: JobContext) -> None:
     )
 
     logger.info("Agent session started for room: %s", ctx.room.name)
-
-    # Greet the user to open the conversation
-    await session.say(
-        f"Hey, how's it going?",
-        allow_interruptions=True,
-    )
 
 
 if __name__ == "__main__":
