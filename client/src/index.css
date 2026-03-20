@@ -1,0 +1,86 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;600;700;800&family=Lora:ital,wght@0,400;0,600;1,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Soft, peaceful palette - Blues, Greens, Warm Creams */
+  --background: 210 20% 98%;
+  --foreground: 220 20% 20%;
+  
+  /* Primary: Calming Teal/Blue */
+  --primary: 185 60% 35%;
+  --primary-foreground: 0 0% 100%;
+  
+  /* Secondary: Soft Sage */
+  --secondary: 150 20% 90%;
+  --secondary-foreground: 150 30% 25%;
+  
+  /* Muted: Warm Gray */
+  --muted: 220 15% 94%;
+  --muted-foreground: 220 10% 50%;
+  
+  /* Accent: Warm Gold/Orange for calls to action */
+  --accent: 35 90% 60%;
+  --accent-foreground: 0 0% 100%;
+  
+  /* Destructive */
+  --destructive: 0 70% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  /* Borders & Inputs */
+  --border: 220 15% 90%;
+  --input: 220 15% 90%;
+  --ring: 185 60% 35%;
+
+  /* Cards */
+  --card: 0 0% 100%;
+  --card-foreground: 220 20% 20%;
+
+  --radius: 0.75rem;
+
+  /* Fonts */
+  --font-sans: 'Inter', sans-serif;
+  --font-display: 'Outfit', sans-serif;
+  --font-serif: 'Lora', serif;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-foreground antialiased font-sans selection:bg-primary/20;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display tracking-tight text-foreground;
+  }
+
+  p {
+    @apply leading-relaxed;
+  }
+}
+
+@layer utilities {
+  .text-serif {
+    font-family: var(--font-serif);
+  }
+  
+  .glass-panel {
+    @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-xl shadow-black/5;
+  }
+  
+  .animate-in {
+    animation: animateIn 0.3s ease-out forwards;
+  }
+  
+  @keyframes animateIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}

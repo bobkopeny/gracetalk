@@ -1,0 +1,28 @@
+node_modules
+dist
+.DS_Store
+server/public
+vite.config.ts.*
+*.tar.gz
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Claude Code internals
+.claude/
+.local/
+
+# Replit internals
+.replit
+.upm/
+
+# Python
+agent/venv/
+agent/__pycache__/
+agent/*.pyc
+__pycache__/
+*.pyc
+*.pyo
+.cache/
