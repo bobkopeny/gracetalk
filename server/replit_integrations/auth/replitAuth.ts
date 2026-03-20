@@ -6,6 +6,7 @@ import connectPg from "connect-pg-simple";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { authStorage } from "./storage";
+import { storage } from "../../storage";
 
 const scryptAsync = promisify(scrypt);
 
@@ -105,6 +106,10 @@ export async function setupAuth(app: Express) {
       firstName: firstName || null,
       lastName: lastName || null,
     });
+
+    // Seed the 5 default practice personas for new users
+    await storage.seedDefaultPersonas(user.id);
+
     req.login(user, (err) => {
       if (err)
         return res
