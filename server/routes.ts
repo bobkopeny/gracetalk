@@ -374,7 +374,7 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
     const svc = new RoomServiceClient(livekitUrl, apiKey, apiSecret);
     await svc.createRoom({ name: roomName, metadata: roomMetadata });
 
-    const at = new AccessToken(apiKey, apiSecret, { identity });
+    const at = new AccessToken(apiKey, apiSecret, { identity, metadata: roomMetadata });
     at.addGrant({ roomJoin: true, room: roomName, canPublish: true, canSubscribe: true });
     const token = await at.toJwt();
 
@@ -446,6 +446,7 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
 
     const at = new AccessToken(apiKey, apiSecret, {
       identity,
+      metadata: roomMetadata,
     });
 
     at.addGrant({

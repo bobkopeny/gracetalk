@@ -8,7 +8,7 @@ import {
 } from "@livekit/components-react";
 import "@livekit/components-styles";
 import { Button } from "@/components/ui/button";
-import { Phone, PhoneOff, Loader2 } from "lucide-react";
+import { Phone, PhoneOff, Loader2, MicOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface LiveKitVoiceCallProps {
@@ -18,7 +18,7 @@ interface LiveKitVoiceCallProps {
   onActiveChange?: (active: boolean) => void;
 }
 
-function VoiceCallActive({ onHangup }: { onHangup: () => void }) {
+function VoiceCallActive({ onHangup, micUnavailable }: { onHangup: () => void; micUnavailable: boolean }) {
   const { state, audioTrack } = useVoiceAssistant();
 
   const stateLabel: Record<string, string> = {
@@ -34,6 +34,13 @@ function VoiceCallActive({ onHangup }: { onHangup: () => void }) {
 
   return (
     <div className="flex items-center gap-3">
+      {micUnavailable && (
+        <span className="flex items-center gap-1 text-xs text-amber-600 font-medium hidden sm:flex">
+          <MicOff className="w-3 h-3" />
+          No mic
+        </span>
+      )}
+
       {/* Compact visualizer */}
       <div className="w-20 h-8 flex items-center">
         <BarVisualizer
@@ -71,11 +78,13 @@ export function LiveKitVoiceCall({ conversationId, personaId, onTranscriptsUpdat
   const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isActive, setIsActive] = useState(false);
+  const [micUnavailable, setMicUnavailable] = useState(false);
 
   const isDemo = !!personaId;
 
   const startCall = useCallback(async () => {
     setIsConnecting(true);
+    setMicUnavailable(false);
     try {
       // Request mic permission — non-fatal if device not found (listen-only mode)
       try {
@@ -88,6 +97,7 @@ export function LiveKitVoiceCall({ conversationId, personaId, onTranscriptsUpdat
         }
         // NotFoundError or other — no mic available, proceed in listen-only mode
         console.warn("No microphone found, connecting in listen-only mode:", micErr?.message);
+        setMicUnavailable(true);
       }
 
       const endpoint = isDemo ? "/api/demo/livekit/token" : "/api/livekit/token";
@@ -121,6 +131,7 @@ export function LiveKitVoiceCall({ conversationId, personaId, onTranscriptsUpdat
     setIsActive(false);
     setToken(null);
     setServerUrl(null);
+    setMicUnavailable(false);
     onActiveChange?.(false);
     setTimeout(() => onTranscriptsUpdated?.(), 1500);
   }, [onTranscriptsUpdated, onActiveChange]);
@@ -149,11 +160,11 @@ export function LiveKitVoiceCall({ conversationId, personaId, onTranscriptsUpdat
       token={token}
       serverUrl={serverUrl}
       connect={true}
-      audio={true}
+      audio={!micUnavailable}
       video={false}
       onDisconnected={endCall}
     >
-      <VoiceCallActive onHangup={endCall} />
+      <VoiceCallActive onHangup={endCall} micUnavailable={micUnavailable} />
     </LiveKitRoom>
   );
 }
