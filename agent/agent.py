@@ -22,6 +22,7 @@ from livekit.agents import (
     AgentSession,
     JobContext,
     WorkerOptions,
+    WorkerDispatchMode,
     cli,
 )
 from livekit.agents import llm as agent_llm
@@ -179,16 +180,17 @@ async def entrypoint(ctx: JobContext) -> None:
 
     logger.info("Agent session started for room: %s", ctx.room.name)
 
-    # Trigger the persona to greet the user first
+    # Trigger the persona to greet the user first (system prompt already instructs agent to speak first)
     try:
-        await session.generate_reply(
-            instructions="Open the conversation with a brief, natural greeting as your character. One sentence only."
-        )
+        await session.generate_reply()
     except Exception as e:
         logger.warning("Could not trigger initial greeting: %s", e)
 
 
 if __name__ == "__main__":
     cli.run_app(
-        WorkerOptions(entrypoint_fnc=entrypoint)
+        WorkerOptions(
+            entrypoint_fnc=entrypoint,
+            dispatch_mode=WorkerDispatchMode.EXPLICIT,
+        )
     )
