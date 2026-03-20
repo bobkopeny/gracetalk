@@ -9,6 +9,7 @@ import { Loader2 } from "lucide-react";
 import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
+import GuestChat from "@/pages/GuestChat";
 import Dashboard from "@/pages/Dashboard";
 import ChatSession from "@/pages/ChatSession";
 import Personas from "@/pages/Personas";
@@ -42,6 +43,7 @@ function Router() {
       <Route path="/" component={Landing} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
+      <Route path="/demo/:personaId" component={GuestChat} />
       <Route path="/dashboard">
         <ProtectedRoute component={Dashboard} />
       </Route>
