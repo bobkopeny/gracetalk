@@ -11,6 +11,7 @@ Requires environment variables:
     GRACETALK_AGENT_SECRET   - shared secret for agent→app API callbacks
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -115,24 +116,31 @@ async def entrypoint(ctx: JobContext) -> None:
     """Entry point called by LiveKit when a participant joins a room."""
     await ctx.connect()
 
-    # Parse metadata — try room metadata first (new server), then fall back
-    # to any remote participant's metadata (old server sent it there)
+    # Give room state a moment to sync after connect
+    await asyncio.sleep(0.5)
+
+    # Parse metadata — try room metadata first, then participant metadata
     metadata: dict = {}
+    raw_room = ctx.room.metadata or ""
+    logger.info("Room metadata raw: %r", raw_room[:200] if raw_room else "(empty)")
+    logger.info("Remote participants: %s", list(ctx.room.remote_participants.keys()))
+
     try:
-        raw = ctx.room.metadata or ""
-        if raw:
-            metadata = json.loads(raw)
-    except json.JSONDecodeError:
-        pass
+        if raw_room:
+            metadata = json.loads(raw_room)
+    except json.JSONDecodeError as e:
+        logger.warning("Failed to parse room metadata: %s", e)
 
     if not metadata:
         for participant in ctx.room.remote_participants.values():
             try:
-                if participant.metadata:
-                    metadata = json.loads(participant.metadata)
+                raw_p = participant.metadata or ""
+                logger.info("Participant %s metadata raw: %r", participant.identity, raw_p[:200])
+                if raw_p:
+                    metadata = json.loads(raw_p)
                     break
-            except json.JSONDecodeError:
-                pass
+            except json.JSONDecodeError as e:
+                logger.warning("Failed to parse participant metadata: %s", e)
 
     if not metadata:
         logger.warning("No metadata found in room or participants; using defaults.")
