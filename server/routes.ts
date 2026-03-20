@@ -7,7 +7,7 @@ import { genderToVoice } from "@shared/models/persona";
 import { z } from "zod";
 import OpenAI from "openai";
 import { ensureCompatibleFormat, speechToText } from "./replit_integrations/audio";
-import { AccessToken } from "livekit-server-sdk";
+import { AccessToken, RoomServiceClient } from "livekit-server-sdk";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -375,15 +375,20 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
       content: m.content,
     }));
 
+    const roomMetadata = JSON.stringify({
+      personaName: persona.name,
+      personaDescription: persona.description,
+      personaVoice: genderToVoice(persona.gender ?? "female"),
+      conversationId: conversation.id,
+      messages: messageHistory,
+    });
+
+    // Create the room with metadata so the agent can read it via ctx.room.metadata
+    const svc = new RoomServiceClient(livekitUrl, apiKey, apiSecret);
+    await svc.createRoom({ name: roomName, metadata: roomMetadata });
+
     const at = new AccessToken(apiKey, apiSecret, {
       identity,
-      metadata: JSON.stringify({
-        personaName: persona.name,
-        personaDescription: persona.description,
-        personaVoice: genderToVoice(persona.gender ?? "female"),
-        conversationId: conversation.id,
-        messages: messageHistory,
-      }),
     });
 
     at.addGrant({

@@ -141,7 +141,6 @@ async def entrypoint(ctx: JobContext) -> None:
 
     session = AgentSession(
         llm=xai.realtime.RealtimeModel(
-            model=os.environ.get("XAI_REALTIME_MODEL", "grok-2-realtime"),
             voice=persona_voice,
             api_key=os.environ["XAI_API_KEY"],
         ),
@@ -155,6 +154,12 @@ async def entrypoint(ctx: JobContext) -> None:
     )
 
     logger.info("Agent session started for room: %s", ctx.room.name)
+
+    # Greet the user to open the conversation
+    await session.say(
+        f"Hey, how's it going?",
+        allow_interruptions=True,
+    )
 
 
 if __name__ == "__main__":
