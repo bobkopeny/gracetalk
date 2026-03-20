@@ -12,7 +12,8 @@ import { Phone, PhoneOff, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface LiveKitVoiceCallProps {
-  conversationId: number;
+  conversationId?: number;
+  personaId?: string; // for demo/guest mode
   onTranscriptsUpdated?: () => void;
   onActiveChange?: (active: boolean) => void;
 }
@@ -65,20 +66,24 @@ function VoiceCallActive({ onHangup }: { onHangup: () => void }) {
   );
 }
 
-export function LiveKitVoiceCall({ conversationId, onTranscriptsUpdated, onActiveChange }: LiveKitVoiceCallProps) {
+export function LiveKitVoiceCall({ conversationId, personaId, onTranscriptsUpdated, onActiveChange }: LiveKitVoiceCallProps) {
   const [token, setToken] = useState<string | null>(null);
   const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isActive, setIsActive] = useState(false);
 
+  const isDemo = !!personaId;
+
   const startCall = useCallback(async () => {
     setIsConnecting(true);
     try {
-      const res = await fetch("/api/livekit/token", {
+      const endpoint = isDemo ? "/api/demo/livekit/token" : "/api/livekit/token";
+      const body = isDemo ? { personaId } : { conversationId };
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ conversationId }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {

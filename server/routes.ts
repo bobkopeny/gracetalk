@@ -345,6 +345,45 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
     res.json({ role: "assistant", content: reply });
   });
 
+  // --- Demo LiveKit token (no auth required) ---
+  app.post("/api/demo/livekit/token", async (req, res) => {
+    const { personaId } = req.body;
+    if (!personaId) return res.status(400).json({ message: "personaId is required" });
+
+    const persona = DEMO_PERSONAS.find((p) => p.id === personaId);
+    if (!persona) return res.status(404).json({ message: "Persona not found" });
+
+    const apiKey = process.env.LIVEKIT_API_KEY;
+    const apiSecret = process.env.LIVEKIT_API_SECRET;
+    const livekitUrl = process.env.LIVEKIT_URL;
+    if (!apiKey || !apiSecret || !livekitUrl) {
+      return res.status(503).json({ message: "LiveKit is not configured" });
+    }
+
+    const roomName = `demo-${personaId}-${Date.now()}`;
+    const identity = `guest-${Date.now()}`;
+
+    const roomMetadata = JSON.stringify({
+      personaName: persona.name,
+      personaDescription: persona.description,
+      personaVoice: "Eve",
+      conversationId: null,
+      messages: [],
+    });
+
+    const svc = new RoomServiceClient(livekitUrl, apiKey, apiSecret);
+    await svc.createRoom({ name: roomName, metadata: roomMetadata });
+
+    const dispatchClient = new AgentDispatchClient(livekitUrl, apiKey, apiSecret);
+    await dispatchClient.createDispatch(roomName, "");
+
+    const at = new AccessToken(apiKey, apiSecret, { identity });
+    at.addGrant({ roomJoin: true, room: roomName, canPublish: true, canSubscribe: true });
+    const token = await at.toJwt();
+
+    res.json({ token, url: livekitUrl, roomName });
+  });
+
   // --- Agent callback (agent saves voice transcripts back to the DB) ---
   app.post("/api/agent/conversations/:id/messages", async (req, res) => {
     const secret = req.headers["x-agent-secret"];

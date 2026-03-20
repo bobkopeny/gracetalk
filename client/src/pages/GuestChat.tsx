@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Send, ArrowLeft, Shield, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LiveKitVoiceCall } from "@/components/LiveKitVoiceCall";
 
 const DEMO_PERSONAS = [
   { id: "open-heart", name: "The Open Heart" },
@@ -96,12 +97,15 @@ export default function GuestChat() {
             <p className="text-xs text-muted-foreground mt-1">Demo Session</p>
           </div>
         </div>
-        <Link href="/register">
-          <Button size="sm" className="gap-2">
-            <UserPlus className="w-4 h-4" />
-            Save Progress
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <LiveKitVoiceCall personaId={personaId} />
+          <Link href="/register">
+            <Button size="sm" variant="outline" className="gap-2">
+              <UserPlus className="w-4 h-4" />
+              Sign Up
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Sign-up banner */}
