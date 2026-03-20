@@ -32,7 +32,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // --- Personas ---
   app.get(api.personas.list.path, requireAuth, async (req, res) => {
-    const personas = await storage.listPersonas((req.user as any).id);
+    const userId = (req.user as any).id;
+    let personas = await storage.listPersonas(userId);
+    if (personas.length === 0) {
+      await storage.seedDefaultPersonas(userId);
+      personas = await storage.listPersonas(userId);
+    }
     res.json(personas);
   });
 
