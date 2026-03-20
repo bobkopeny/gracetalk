@@ -96,15 +96,19 @@ class WitnessPersona(Agent):
         self, turn_ctx: agent_llm.ChatContext, new_message: agent_llm.ChatMessage
     ) -> None:
         """Called after the user finishes speaking — save their transcript."""
-        if self._conversation_id and new_message.text_content:
-            save_message_to_app(self._conversation_id, "user", new_message.text_content)
+        text = new_message.text_content
+        logger.info("on_user_turn_completed: conv=%s text=%r", self._conversation_id, text)
+        if self._conversation_id and text:
+            save_message_to_app(self._conversation_id, "user", text)
 
     async def on_agent_turn_completed(
         self, turn_ctx: agent_llm.ChatContext, new_message: agent_llm.ChatMessage
     ) -> None:
         """Called after the agent finishes speaking — save its transcript."""
-        if self._conversation_id and new_message.text_content:
-            save_message_to_app(self._conversation_id, "assistant", new_message.text_content)
+        text = new_message.text_content
+        logger.info("on_agent_turn_completed: conv=%s text=%r", self._conversation_id, text)
+        if self._conversation_id and text:
+            save_message_to_app(self._conversation_id, "assistant", text)
 
 
 async def entrypoint(ctx: JobContext) -> None:
@@ -178,6 +182,21 @@ async def entrypoint(ctx: JobContext) -> None:
     )
 
     logger.info("Agent session started for room: %s", ctx.room.name)
+
+    # Session-level transcript capture (primary mechanism for realtime models)
+    @session.on("user_speech_committed")
+    def on_user_speech(msg: agent_llm.ChatMessage) -> None:
+        text = msg.text_content
+        logger.info("user_speech_committed: conv=%s text=%r", conversation_id, text)
+        if conversation_id and text:
+            save_message_to_app(conversation_id, "user", text)
+
+    @session.on("agent_speech_committed")
+    def on_agent_speech(msg: agent_llm.ChatMessage) -> None:
+        text = msg.text_content
+        logger.info("agent_speech_committed: conv=%s text=%r", conversation_id, text)
+        if conversation_id and text:
+            save_message_to_app(conversation_id, "assistant", text)
 
     # Trigger the persona to greet the user first (system prompt already instructs agent to speak first)
     try:
