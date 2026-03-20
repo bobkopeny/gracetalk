@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Plus, Loader2, Venus, Mars } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -107,7 +107,7 @@ export function CreatePersonaDialog() {
                           : "border-border text-muted-foreground hover:border-pink-200 hover:text-pink-500"
                       )}
                     >
-                      <Venus className="w-4 h-4" /> Female (Eve)
+                      <span className="text-base leading-none">♀</span> Female (Eve)
                     </button>
                     <button
                       type="button"
@@ -119,7 +119,7 @@ export function CreatePersonaDialog() {
                           : "border-border text-muted-foreground hover:border-blue-200 hover:text-blue-500"
                       )}
                     >
-                      <Mars className="w-4 h-4" /> Male (Rex)
+                      <span className="text-base leading-none">♂</span> Male (Rex)
                     </button>
                   </div>
                   <p className="text-xs text-muted-foreground">Auto-detected from name — you can change it</p>

@@ -1,7 +1,7 @@
 import { type Persona } from "@shared/models/persona";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, Trash2, Venus, Mars } from "lucide-react";
+import { MessageCircle, Trash2 } from "lucide-react";
 import { useUpdatePersona } from "@/hooks/use-personas";
 import { cn } from "@/lib/utils";
 
@@ -42,7 +42,7 @@ export function PersonaCard({ persona, onStartChat, onDelete, compact = false }:
                   : "text-blue-500 hover:text-blue-600 hover:bg-blue-50"
               )}
             >
-              {gender === "female" ? <Venus className="w-4 h-4" /> : <Mars className="w-4 h-4" />}
+              {gender === "female" ? <span className="text-base leading-none">♀</span> : <span className="text-base leading-none">♂</span>}
             </Button>
             {onDelete && (
               <Button
@@ -68,9 +68,9 @@ export function PersonaCard({ persona, onStartChat, onDelete, compact = false }:
         <CardContent>
           <p className="text-xs text-muted-foreground flex items-center gap-1.5">
             {gender === "female" ? (
-              <Venus className="w-3 h-3 text-pink-400" />
+              <span className="text-pink-400 text-xs leading-none">♀</span>
             ) : (
-              <Mars className="w-3 h-3 text-blue-400" />
+              <span className="text-blue-400 text-xs leading-none">♂</span>
             )}
             Voice: <span className="font-medium">{gender === "female" ? "Eve (female)" : "Rex (male)"}</span>
           </p>
