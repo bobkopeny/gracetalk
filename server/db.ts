@@ -23,4 +23,12 @@ export async function runMigrations() {
   } catch (err: any) {
     console.error("[db] Migration warning (non-fatal):", err?.message);
   }
+  try {
+    await pool.query(`
+      ALTER TABLE personas ADD COLUMN IF NOT EXISTS voice VARCHAR(20) NOT NULL DEFAULT 'Aria';
+    `);
+    console.log("[db] Migration: voice column ready");
+  } catch (err: any) {
+    console.error("[db] Migration warning (non-fatal):", err?.message);
+  }
 }

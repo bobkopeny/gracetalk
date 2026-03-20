@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertPersonaSchema, type InsertPersona, detectGenderFromName } from "@shared/models/persona";
+import { insertPersonaSchema, type InsertPersona, detectGenderFromName, XAI_VOICES } from "@shared/models/persona";
 import { useCreatePersona } from "@/hooks/use-personas";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -23,17 +23,17 @@ export function CreatePersonaDialog() {
       name: "",
       description: "",
       gender: "female",
+      voice: "Aria",
     },
   });
 
-  const gender = form.watch("gender");
-
-  // Auto-detect gender when name changes
+  // Auto-detect voice from name
   const handleNameChange = (name: string) => {
     form.setValue("name", name);
     if (name.trim().length >= 2) {
       const detected = detectGenderFromName(name);
       form.setValue("gender", detected);
+      form.setValue("voice", detected === "male" ? "Leo" : "Aria");
     }
   };
 
@@ -89,38 +89,35 @@ export function CreatePersonaDialog() {
               )}
             />
 
-            {/* Gender / Voice toggle */}
+            {/* Voice selector */}
             <FormField
               control={form.control}
-              name="gender"
+              name="voice"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Voice</FormLabel>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => field.onChange("female")}
-                      className={cn(
-                        "flex-1 flex items-center justify-center gap-2 rounded-lg border py-2 text-sm font-medium transition-colors",
-                        field.value === "female"
-                          ? "border-pink-400 bg-pink-50 text-pink-600"
-                          : "border-border text-muted-foreground hover:border-pink-200 hover:text-pink-500"
-                      )}
-                    >
-                      <span className="text-base leading-none">♀</span> Female (Eve)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => field.onChange("male")}
-                      className={cn(
-                        "flex-1 flex items-center justify-center gap-2 rounded-lg border py-2 text-sm font-medium transition-colors",
-                        field.value === "male"
-                          ? "border-blue-400 bg-blue-50 text-blue-600"
-                          : "border-border text-muted-foreground hover:border-blue-200 hover:text-blue-500"
-                      )}
-                    >
-                      <span className="text-base leading-none">♂</span> Male (Rex)
-                    </button>
+                  <div className="grid grid-cols-5 gap-1.5">
+                    {XAI_VOICES.map(v => (
+                      <button
+                        key={v.id}
+                        type="button"
+                        onClick={() => {
+                          field.onChange(v.id);
+                          form.setValue("gender", v.gender);
+                        }}
+                        className={cn(
+                          "flex flex-col items-center gap-0.5 rounded-lg border py-2 px-1 text-xs font-medium transition-colors",
+                          field.value === v.id
+                            ? v.gender === "female"
+                              ? "border-pink-400 bg-pink-50 text-pink-600"
+                              : "border-blue-400 bg-blue-50 text-blue-600"
+                            : "border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"
+                        )}
+                      >
+                        <span className="text-sm leading-none">{v.gender === "female" ? "♀" : "♂"}</span>
+                        {v.label}
+                      </button>
+                    ))}
                   </div>
                   <p className="text-xs text-muted-foreground">Auto-detected from name — you can change it</p>
                 </FormItem>

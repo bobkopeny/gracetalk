@@ -12,7 +12,7 @@ export interface IStorage {
   createPersona(persona: InsertPersona): Promise<Persona>;
   getPersona(id: number): Promise<Persona | undefined>;
   listPersonas(userId: string): Promise<Persona[]>;
-  updatePersona(id: number, data: Partial<Pick<Persona, "gender">>): Promise<Persona>;
+  updatePersona(id: number, data: Partial<Pick<Persona, "gender" | "voice">>): Promise<Persona>;
   deletePersona(id: number): Promise<void>;
 
   // Chat
@@ -62,7 +62,7 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(personas).where(eq(personas.userId, userId)).orderBy(desc(personas.createdAt));
   }
 
-  async updatePersona(id: number, data: Partial<Pick<Persona, "gender">>): Promise<Persona> {
+  async updatePersona(id: number, data: Partial<Pick<Persona, "gender" | "voice">>): Promise<Persona> {
     const [updated] = await db.update(personas).set(data).where(eq(personas.id, id)).returning();
     return updated;
   }
@@ -72,34 +72,39 @@ export class DatabaseStorage implements IStorage {
   }
 
   async seedDefaultPersonas(userId: string): Promise<void> {
-    const defaults: { name: string; description: string; gender: "female" | "male" }[] = [
+    const defaults: { name: string; description: string; gender: "female" | "male"; voice: string }[] = [
       {
         name: "The Open Heart",
         gender: "female",
+        voice: "Aria",
         description:
           "A spiritually curious person who grew up without strong religious ties but feels an inner longing for something more. They ask genuine questions about meaning, purpose, and whether God exists. They are warm, emotionally open, and receptive to personal stories and experiences. They may have tried meditation or new-age spirituality. They are not hostile—just searching. They respond well to compassion, personal testimony, and genuine connection.",
       },
       {
         name: "The Spiritual Agnostic",
         gender: "female" as const,
+        voice: "Eve",
         description:
           "Believes in 'something bigger' but rejects organized religion and doctrinal Christianity. Says things like 'I'm spiritual but not religious' and 'all paths lead to the same place.' Finds the exclusivity of Christianity off-putting. Values personal experience over scripture. Is open to deep conversation but will push back on claims that Jesus is the only way. Responds well to listening, asking questions, and honoring their spiritual journey before introducing Christian truth.",
       },
       {
         name: "The Professional",
         gender: "male" as const,
+        voice: "Leo",
         description:
           "A driven, career-focused individual in their 30s-40s who simply doesn't think about religion. Not hostile—just indifferent. Life is full: family, mortgage, promotions. Sees Christianity as fine for other people but personally irrelevant. Skeptical that faith has practical value. May respect moral arguments and real-world impact. Responds to efficiency, logic, and the relevance of faith to everyday struggles like stress, purpose, and relationships.",
       },
       {
         name: "Hurt by the Church",
         gender: "female" as const,
+        voice: "Sal",
         description:
           "Was raised in church but experienced real pain—judgmental community, a pastor who failed them, legalism, or feeling rejected during a personal crisis. Has genuine wounds and is guarded. May believe in God somewhere deep down but is angry at Christians and the institution. Quick to bring up hypocrisy and past hurts. Needs to feel heard and validated before any spiritual conversation can go deeper. Does NOT respond well to platitudes or being told to 'just forgive.' Responds to empathy, humility, and honest acknowledgment of the church's failures.",
       },
       {
         name: "The Skeptical Atheist",
         gender: "male" as const,
+        voice: "Rex",
         description:
           "An intellectually curious person who has concluded there is no God based on science, logic, and the problem of evil. Familiar with common Christian arguments and has counter-arguments ready. Challenges the reliability of the Bible, the existence of miracles, and the exclusivity of Christianity. Not mean-spirited, but firm and confident. Values evidence and rational thought. Responds best to honest intellectual engagement, not emotional appeals. Is willing to follow the argument wherever it leads if you engage respectfully and thoughtfully.",
       },

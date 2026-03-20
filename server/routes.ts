@@ -72,11 +72,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (!persona || persona.userId !== (req.user as any).id) {
       return res.status(404).json({ message: "Persona not found" });
     }
-    const { gender } = req.body;
-    if (gender !== "female" && gender !== "male") {
-      return res.status(400).json({ message: "gender must be 'female' or 'male'" });
+    const { gender, voice } = req.body;
+    const updateData: Record<string, string> = {};
+    if (gender !== undefined) {
+      if (gender !== "female" && gender !== "male") {
+        return res.status(400).json({ message: "gender must be 'female' or 'male'" });
+      }
+      updateData.gender = gender;
     }
-    const updated = await storage.updatePersona(Number(req.params.id), { gender });
+    if (voice !== undefined) {
+      const validVoices = ["Aria", "Eve", "Sal", "Leo", "Rex"];
+      if (!validVoices.includes(voice)) {
+        return res.status(400).json({ message: "invalid voice" });
+      }
+      updateData.voice = voice;
+    }
+    const updated = await storage.updatePersona(Number(req.params.id), updateData);
     res.json(updated);
   });
 
@@ -434,7 +445,7 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
     const roomMetadata = JSON.stringify({
       personaName: persona.name,
       personaDescription: persona.description,
-      personaVoice: genderToVoice(persona.gender ?? "female"),
+      personaVoice: persona.voice || genderToVoice(persona.gender ?? "female"),
       conversationId: conversation.id,
       messages: messageHistory,
     });

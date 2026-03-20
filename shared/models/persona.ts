@@ -9,6 +9,7 @@ export const personas = pgTable("personas", {
   name: text("name").notNull(),
   description: text("description").notNull(), // Background, beliefs, resistance points
   gender: varchar("gender", { length: 10 }).notNull().default("female"),
+  voice: varchar("voice", { length: 20 }).notNull().default("Aria"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -16,14 +17,27 @@ export const insertPersonaSchema = createInsertSchema(personas).omit({
   id: true,
   userId: true,
   createdAt: true,
+}).extend({
+  voice: z.string().default("Aria"),
 });
 
 export type Persona = typeof personas.$inferSelect;
 export type InsertPersona = z.infer<typeof insertPersonaSchema>;
 
-// Maps gender to xAI Grok realtime voice
+// All available xAI Grok realtime voices
+export const XAI_VOICES = [
+  { id: "Aria", label: "Aria", gender: "female" },
+  { id: "Eve",  label: "Eve",  gender: "female" },
+  { id: "Sal",  label: "Sal",  gender: "female" },
+  { id: "Leo",  label: "Leo",  gender: "male"   },
+  { id: "Rex",  label: "Rex",  gender: "male"   },
+] as const;
+
+export type XaiVoice = typeof XAI_VOICES[number]["id"];
+
+// Fallback: map gender to default voice (used when no explicit voice is set)
 export function genderToVoice(gender: string): string {
-  return gender === "male" ? "Rex" : "Eve";
+  return gender === "male" ? "Rex" : "Aria";
 }
 
 // Simple heuristic: detect gender from a name string

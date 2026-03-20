@@ -50,12 +50,12 @@ export function useCreatePersona() {
 export function useUpdatePersona() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, gender }: { id: number; gender: "female" | "male" }) => {
+    mutationFn: async ({ id, gender, voice }: { id: number; gender?: "female" | "male"; voice?: string }) => {
       const url = buildUrl(api.personas.update.path, { id });
       const res = await fetch(url, {
         method: api.personas.update.method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gender }),
+        body: JSON.stringify({ gender, voice }),
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to update persona");
