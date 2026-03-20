@@ -12,3 +12,10 @@ if (!process.env.DATABASE_URL) {
 
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 export const db = drizzle(pool, { schema });
+
+// Run any pending schema migrations that drizzle-kit push would handle interactively
+export async function runMigrations() {
+  await pool.query(`
+    ALTER TABLE personas ADD COLUMN IF NOT EXISTS gender VARCHAR(10) NOT NULL DEFAULT 'female';
+  `);
+}
