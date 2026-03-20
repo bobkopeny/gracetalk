@@ -1,13 +1,13 @@
 """
 GraceTalk LiveKit Voice Agent
-Powered by xAI Grok (LLM) + Deepgram (STT + TTS) via LiveKit Agents
+Powered by xAI Grok (LLM) + OpenAI Whisper (STT) + OpenAI TTS via LiveKit Agents
 
 Requires environment variables:
     LIVEKIT_URL              - wss://your-project.livekit.cloud
     LIVEKIT_API_KEY          - LiveKit project API key
     LIVEKIT_API_SECRET       - LiveKit project API secret
     XAI_API_KEY              - xAI API key (https://console.x.ai/)
-    DEEPGRAM_API_KEY         - Deepgram API key (https://console.deepgram.com/)
+    OPENAI_API_KEY           - OpenAI API key (for Whisper STT + TTS)
     GRACETALK_API_URL        - https://gracetalk-production.up.railway.app
     GRACETALK_AGENT_SECRET   - shared secret for agent→app API callbacks
 """
@@ -26,7 +26,7 @@ from livekit.agents import (
     cli,
 )
 from livekit.agents import llm as agent_llm
-from livekit.plugins import deepgram, silero
+from livekit.plugins import silero
 from livekit.plugins import openai as lk_openai
 
 load_dotenv()
@@ -143,14 +143,15 @@ async def entrypoint(ctx: JobContext) -> None:
     # Build the voice pipeline
     session = AgentSession(
         vad=silero.VAD.load(),
-        stt=deepgram.STT(model="nova-2", language="en-US"),
+        stt=lk_openai.STT(model="whisper-1"),
         llm=lk_openai.LLM(
             model=os.environ.get("XAI_MODEL", "grok-3"),
             base_url="https://api.x.ai/v1",
             api_key=os.environ["XAI_API_KEY"],
         ),
-        tts=deepgram.TTS(
-            model=os.environ.get("DEEPGRAM_TTS_MODEL", "aura-asteria-en"),
+        tts=lk_openai.TTS(
+            model=os.environ.get("OPENAI_TTS_MODEL", "tts-1"),
+            voice=os.environ.get("OPENAI_TTS_VOICE", "alloy"),
         ),
     )
 
