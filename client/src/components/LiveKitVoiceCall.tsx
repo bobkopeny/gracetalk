@@ -102,7 +102,7 @@ export function LiveKitVoiceCall({ conversationId, personaId, onTranscriptsUpdat
     } finally {
       setIsConnecting(false);
     }
-  }, [conversationId, onActiveChange]);
+  }, [conversationId, personaId, isDemo, onActiveChange]);
 
   const endCall = useCallback(() => {
     setIsActive(false);

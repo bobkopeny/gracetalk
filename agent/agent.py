@@ -179,6 +179,14 @@ async def entrypoint(ctx: JobContext) -> None:
 
     logger.info("Agent session started for room: %s", ctx.room.name)
 
+    # Trigger the persona to greet the user first
+    try:
+        await session.generate_reply(
+            instructions="Open the conversation with a brief, natural greeting as your character. One sentence only."
+        )
+    except Exception as e:
+        logger.warning("Could not trigger initial greeting: %s", e)
+
 
 if __name__ == "__main__":
     cli.run_app(
