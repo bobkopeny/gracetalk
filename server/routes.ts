@@ -1,6 +1,6 @@
 import express, { type Express } from "express";
 import { createServer, type Server } from "http";
-import { setupAuth } from "./replit_integrations/auth";
+import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -14,8 +14,9 @@ const openai = new OpenAI({
 });
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
-  // Set up Replit Auth
+  // Set up auth
   await setupAuth(app);
+  registerAuthRoutes(app);
 
   // Body parser with 50MB limit for audio payloads
   app.use(express.json({ limit: "50mb" }));
