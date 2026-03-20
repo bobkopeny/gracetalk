@@ -7,7 +7,7 @@ import { genderToVoice } from "@shared/models/persona";
 import { z } from "zod";
 import OpenAI from "openai";
 import { ensureCompatibleFormat, speechToText } from "./replit_integrations/audio";
-import { AccessToken, RoomServiceClient } from "livekit-server-sdk";
+import { AccessToken, RoomServiceClient, AgentDispatchClient } from "livekit-server-sdk";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -398,6 +398,10 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
     // Create the room with metadata so the agent can read it via ctx.room.metadata
     const svc = new RoomServiceClient(livekitUrl, apiKey, apiSecret);
     await svc.createRoom({ name: roomName, metadata: roomMetadata });
+
+    // Dispatch the agent worker to the room
+    const dispatchClient = new AgentDispatchClient(livekitUrl, apiKey, apiSecret);
+    await dispatchClient.createDispatch(roomName, "");
 
     const at = new AccessToken(apiKey, apiSecret, {
       identity,
