@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, varchar, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
@@ -10,6 +10,7 @@ export const conversations = pgTable("conversations", {
   userId: varchar("user_id").references(() => users.id).notNull(),
   personaId: integer("persona_id").references(() => personas.id).notNull(),
   title: text("title").notNull(),
+  converted: boolean("converted").notNull().default(false),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 

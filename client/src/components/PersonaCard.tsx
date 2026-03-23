@@ -1,5 +1,4 @@
-import { type Persona } from "@shared/models/persona";
-import { XAI_VOICES } from "@shared/models/persona";
+import { type Persona, XAI_VOICES, DIFFICULTY_CONFIG } from "@shared/models/persona";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -21,14 +20,20 @@ export function PersonaCard({ persona, onStartChat, onDelete, compact = false }:
     updatePersona.mutate({ id: persona.id, voice });
   };
 
-  const voiceInfo = XAI_VOICES.find(v => v.id === currentVoice) ?? XAI_VOICES[0];
+  const difficulty = (persona.difficulty ?? 3) as 1 | 2 | 3 | 4 | 5;
+  const diffConfig = DIFFICULTY_CONFIG[difficulty] ?? DIFFICULTY_CONFIG[3];
 
   return (
     <Card className="hover:shadow-lg hover:border-primary/20 transition-all duration-300 group relative overflow-hidden">
       <div className="absolute top-0 left-0 w-1 h-full bg-primary/20 group-hover:bg-primary transition-colors" />
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
-          <CardTitle className="text-xl font-display">{persona.name}</CardTitle>
+          <div>
+            <CardTitle className="text-xl font-display">{persona.name}</CardTitle>
+            <span className={`inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${diffConfig.tagColor}`}>
+              {"★".repeat(diffConfig.stars)}{"☆".repeat(5 - diffConfig.stars)} {diffConfig.label}
+            </span>
+          </div>
           <div className="flex items-center gap-1 -mt-2 -mr-2">
             {onDelete && (
               <Button
@@ -45,9 +50,9 @@ export function PersonaCard({ persona, onStartChat, onDelete, compact = false }:
             )}
           </div>
         </div>
-        <CardDescription className="line-clamp-2">
-          {persona.description}
-        </CardDescription>
+          <CardDescription className="line-clamp-2 mt-1">
+            {persona.description}
+          </CardDescription>
       </CardHeader>
 
       {!compact && (

@@ -31,4 +31,20 @@ export async function runMigrations() {
   } catch (err: any) {
     console.error("[db] Migration warning (non-fatal):", err?.message);
   }
+  try {
+    await pool.query(`
+      ALTER TABLE personas ADD COLUMN IF NOT EXISTS difficulty INTEGER NOT NULL DEFAULT 3;
+    `);
+    console.log("[db] Migration: difficulty column ready");
+  } catch (err: any) {
+    console.error("[db] Migration warning (non-fatal):", err?.message);
+  }
+  try {
+    await pool.query(`
+      ALTER TABLE conversations ADD COLUMN IF NOT EXISTS converted BOOLEAN NOT NULL DEFAULT false;
+    `);
+    console.log("[db] Migration: converted column ready");
+  } catch (err: any) {
+    console.error("[db] Migration warning (non-fatal):", err?.message);
+  }
 }

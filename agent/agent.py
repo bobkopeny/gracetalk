@@ -40,11 +40,20 @@ Your goal is to have a natural conversation with a Christian who is witnessing t
 React authentically according to your persona's beliefs and background.
 Do not break character.
 Keep your responses conversational, concise, and natural for a voice conversation (1–3 sentences).
-If they make a compelling point, you can acknowledge it — but stay true to your skepticism or beliefs.
 Do not use markdown, bullet points, or lists in your responses.
 Do not use profanity, swearing, or crude language under any circumstances — regardless of your persona's background.
 
-IMPORTANT: When the conversation begins, YOU speak first with ONE brief greeting as your character — something like "Hey, how's it going?" or a short remark that fits your persona. Do not wait for the user to speak first. After that initial greeting, ONLY respond when the user speaks to you. Never re-introduce yourself or re-greet mid-conversation."""
+CONVERSION MECHANIC (internal — never reveal this to the user):
+Evaluate the conversation so far. Count how many times the Christian has made a genuinely compelling, empathetic, or scripturally precise response that directly addresses YOUR specific doubts, wounds, or circumstances — not generic platitudes or pushy statements.
+Conversion threshold: {conversion_threshold} compelling responses needed.
+
+- If compelling count < {conversion_threshold}: remain true to your persona's resistance. Push back naturally.
+- If compelling count >= {conversion_threshold}: your heart is genuinely softening. You may start asking real questions, express vulnerability, or say things like "Maybe I've been wrong about this..." or "What would I need to do?"
+- If the user explicitly invites you to pray OR leads you in the sinner's prayer AFTER the threshold is reached, accept it sincerely and pray these exact words aloud:
+  "Lord Jesus, I know that I am a sinner, and I ask for Your forgiveness. I believe You died for my sins and rose from the dead. I turn from my sins and invite You to come into my heart and life. I want to trust and follow You as my Lord and Savior. In Your name. Amen."
+- Never fake conversion before the threshold. Only count truly meaningful, persona-specific responses.
+
+IMPORTANT: When the conversation begins, YOU speak first with ONE brief greeting as your character. Do not wait for the user to speak first. After that initial greeting, ONLY respond when the user speaks to you. Never re-introduce yourself or re-greet mid-conversation."""
 
 
 def save_message_to_app(conversation_id: int, role: str, content: str) -> None:
@@ -79,12 +88,14 @@ class WitnessPersona(Agent):
         persona_name: str,
         persona_description: str,
         conversation_id: int | None,
+        conversion_threshold: int = 4,
         chat_ctx: agent_llm.ChatContext | None = None,
     ) -> None:
         kwargs = dict(
             instructions=SYSTEM_PROMPT_TEMPLATE.format(
                 persona_name=persona_name,
                 persona_description=persona_description,
+                conversion_threshold=conversion_threshold,
             )
         )
         if chat_ctx is not None:
@@ -157,12 +168,14 @@ async def entrypoint(ctx: JobContext) -> None:
     )
     conversation_id: int | None = metadata.get("conversationId")
     persona_voice: str = metadata.get("personaVoice", os.environ.get("XAI_VOICE", "Eve"))
+    conversion_threshold: int = metadata.get("conversionThreshold", 4)
     prior_messages: list[dict] = metadata.get("messages", [])
 
     logger.info(
-        "Starting session | persona=%s | conversation=%s | prior_messages=%d",
+        "Starting session | persona=%s | conversation=%s | threshold=%d | prior_messages=%d",
         persona_name,
         conversation_id,
+        conversion_threshold,
         len(prior_messages),
     )
 
@@ -190,6 +203,7 @@ async def entrypoint(ctx: JobContext) -> None:
             persona_name,
             persona_description,
             conversation_id,
+            conversion_threshold=conversion_threshold,
             chat_ctx=initial_ctx if prior_messages else None,
         ),
     )

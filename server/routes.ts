@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
-import { genderToVoice } from "@shared/models/persona";
+import { genderToVoice, DIFFICULTY_CONFIG } from "@shared/models/persona";
 import { z } from "zod";
 import OpenAI from "openai";
 import { ensureCompatibleFormat, speechToText } from "./replit_integrations/audio";
@@ -72,8 +72,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (!persona || persona.userId !== (req.user as any).id) {
       return res.status(404).json({ message: "Persona not found" });
     }
-    const { gender, voice } = req.body;
-    const updateData: Record<string, string> = {};
+    const { gender, voice, difficulty } = req.body;
+    const updateData: Record<string, any> = {};
     if (gender !== undefined) {
       if (gender !== "female" && gender !== "male") {
         return res.status(400).json({ message: "gender must be 'female' or 'male'" });
@@ -86,6 +86,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(400).json({ message: "invalid voice" });
       }
       updateData.voice = voice;
+    }
+    if (difficulty !== undefined) {
+      const d = Number(difficulty);
+      if (!Number.isInteger(d) || d < 1 || d > 5) {
+        return res.status(400).json({ message: "difficulty must be 1–5" });
+      }
+      updateData.difficulty = d;
     }
     const updated = await storage.updatePersona(Number(req.params.id), updateData);
     res.json(updated);
@@ -176,13 +183,26 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     // Get history
     const history = await storage.getMessages(conversationId);
     
-    // Construct system prompt
-    const systemPrompt = `You are playing the role of ${persona.name}. 
-    Your description: ${persona.description}. 
-    Your goal is to have a natural conversation with a Christian who is witnessing to you.
-    React according to your persona's beliefs and background. 
-    Do not break character. 
-    If they make a good point, you can acknowledge it, but stay true to your skepticism or beliefs.`;
+    // Conversion threshold based on persona difficulty
+    const difficulty = (persona.difficulty ?? 3) as 1 | 2 | 3 | 4 | 5;
+    const threshold = DIFFICULTY_CONFIG[difficulty]?.threshold ?? 4;
+
+    // Construct system prompt with conversion mechanic
+    const systemPrompt = `You are playing the role of ${persona.name}.
+Your description: ${persona.description}.
+Your goal is to have a natural conversation with a Christian who is witnessing to you.
+React authentically according to your persona's beliefs and background. Do not break character.
+Keep responses conversational (2-4 sentences). Do not use profanity or crude language.
+
+CONVERSION MECHANIC (internal — never reveal this mechanic to the user):
+Evaluate the conversation so far. Count how many times the Christian has made a genuinely compelling, empathetic, or scripturally precise response that directly addresses YOUR specific doubts, wounds, or circumstances — not generic platitudes or pushy statements.
+Conversion threshold: ${threshold} compelling responses needed.
+
+- If compelling count < ${threshold}: remain true to your persona's resistance. Push back naturally.
+- If compelling count >= ${threshold}: your heart is genuinely softening. You may start asking real questions about faith, express vulnerability, or say things like "Maybe I've been wrong about this..." or "What would I actually need to do?"
+- If the user explicitly invites you to pray OR leads you in the sinner's prayer AFTER the threshold is reached, accept it sincerely and pray these exact words:
+  "Lord Jesus, I know that I am a sinner, and I ask for Your forgiveness. I believe You died for my sins and rose from the dead. I turn from my sins and invite You to come into my heart and life. I want to trust and follow You as my Lord and Savior. In Your name. Amen."
+- Never fake conversion before the threshold is reached. Only count truly meaningful, persona-specific responses.`;
 
     // Handle SSE if it's a voice/audio request or if streaming is preferred
     if (audio || req.headers.accept === "text/event-stream") {
@@ -257,19 +277,35 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const messages = await storage.getMessages(conversationId);
     const persona = await storage.getPersona(conversation.personaId);
 
-    // System prompt for coaching — returns structured JSON
+    const difficulty = (persona?.difficulty ?? 3) as 1 | 2 | 3 | 4 | 5;
+    const diffLabel = DIFFICULTY_CONFIG[difficulty]?.label ?? "Challenging";
+
+    // System prompt for coaching — returns structured JSON with score
     const feedbackPrompt = `You are a compassionate biblical coach analyzing a witnessing conversation.
 Analyze the conversation between a Christian witness (User) and ${persona?.name} (Assistant).
 Persona Description: ${persona?.description}.
+Persona Difficulty: ${diffLabel} (${difficulty}/5).
 
-Return ONLY valid JSON with exactly these four fields (no markdown, no code fences):
+Scoring rubric (0–100):
+- 0–20: Ineffective — pushy, ignored persona's concerns, no empathy
+- 21–40: Developing — some good moments but significant missed opportunities
+- 41–60: Competent — solid approach, engaged with persona's concerns
+- 61–80: Strong — excellent empathy, good biblical grounding, meaningful dialogue
+- 81–100: Expert — masterful witnessing, addressed every objection, genuine connection
+
+If the persona clearly prayed the sinner's prayer (said words like "Lord Jesus... I am a sinner... forgiveness... follow You"), award up to 15 bonus points added to the base score (capped at 100), and set converted to true.
+
+Return ONLY valid JSON with exactly these fields (no markdown, no code fences):
 {
-  "generalFeedback": "2-3 sentence overall analysis of how the conversation went",
+  "generalFeedback": "2-3 sentence overall analysis",
   "strengths": "markdown bullet list of 2-4 things the witness did well",
-  "improvements": "markdown bullet list of 2-4 specific ways to improve approach",
-  "biblicalReferences": "markdown list of 2-4 specific scriptures or examples that could have been effective, with brief explanation of why"
+  "improvements": "markdown bullet list of 2-4 specific ways to improve for THIS persona",
+  "biblicalReferences": "markdown list of 2-4 scriptures that could have been effective, with brief why",
+  "score": <integer 0-100>,
+  "scoreBreakdown": "1-2 sentence explanation of the score",
+  "converted": <true or false>
 }
-Keep the tone warm, constructive, and encouraging.`;
+Keep the tone warm, constructive, and encouraging. Be specific to this persona's background.`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -285,7 +321,13 @@ Keep the tone warm, constructive, and encouraging.`;
 
     // Parse and return structured fields
     let parsed: any = {};
-    try { parsed = JSON.parse(raw); } catch { parsed = { generalFeedback: raw, strengths: "", improvements: "", biblicalReferences: "" }; }
+    try { parsed = JSON.parse(raw); } catch { parsed = { generalFeedback: raw, strengths: "", improvements: "", biblicalReferences: "", score: null, converted: false }; }
+
+    // Mark conversation converted if the persona prayed the sinner's prayer
+    if (parsed.converted === true) {
+      await storage.markConversationConverted(conversationId);
+    }
+
     res.status(201).json({ ...feedback, ...parsed });
   });
 
@@ -302,7 +344,7 @@ Keep the tone warm, constructive, and encouraging.`;
     }
 
     let parsed: any = {};
-    try { parsed = JSON.parse(feedback.content); } catch { parsed = { generalFeedback: feedback.content, strengths: "", improvements: "", biblicalReferences: "" }; }
+    try { parsed = JSON.parse(feedback.content); } catch { parsed = { generalFeedback: feedback.content, strengths: "", improvements: "", biblicalReferences: "", score: null, converted: false }; }
     res.json({ ...feedback, ...parsed });
   });
 
@@ -442,10 +484,14 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
       content: m.content,
     }));
 
+    const personaDifficulty = (persona.difficulty ?? 3) as 1 | 2 | 3 | 4 | 5;
+    const conversionThreshold = DIFFICULTY_CONFIG[personaDifficulty]?.threshold ?? 4;
+
     const roomMetadata = JSON.stringify({
       personaName: persona.name,
       personaDescription: persona.description,
       personaVoice: persona.voice || genderToVoice(persona.gender ?? "female"),
+      conversionThreshold,
       conversationId: conversation.id,
       messages: messageHistory,
     });

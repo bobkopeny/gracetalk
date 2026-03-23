@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { users } from "./auth";
@@ -10,6 +10,7 @@ export const personas = pgTable("personas", {
   description: text("description").notNull(), // Background, beliefs, resistance points
   gender: varchar("gender", { length: 10 }).notNull().default("female"),
   voice: varchar("voice", { length: 20 }).notNull().default("Aria"),
+  difficulty: integer("difficulty").notNull().default(3),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -19,6 +20,7 @@ export const insertPersonaSchema = createInsertSchema(personas).omit({
   createdAt: true,
 }).extend({
   voice: z.string().default("Aria"),
+  difficulty: z.number().int().min(1).max(5).default(3),
 });
 
 export type Persona = typeof personas.$inferSelect;
@@ -38,6 +40,17 @@ export const XAI_VOICES = [
 ] as const;
 
 export type XaiVoice = typeof XAI_VOICES[number]["id"];
+
+// Difficulty levels — controls how many compelling responses are needed for conversion
+export const DIFFICULTY_CONFIG = {
+  1: { label: "Easy",       stars: 1, threshold: 2, tagColor: "bg-green-100 text-green-700",  description: "Open and seeking" },
+  2: { label: "Moderate",   stars: 2, threshold: 3, tagColor: "bg-blue-100 text-blue-700",    description: "Politely skeptical" },
+  3: { label: "Challenging",stars: 3, threshold: 4, tagColor: "bg-yellow-100 text-yellow-700",description: "Resistant" },
+  4: { label: "Hard",       stars: 4, threshold: 5, tagColor: "bg-orange-100 text-orange-700",description: "Firmly opposed" },
+  5: { label: "Expert",     stars: 5, threshold: 7, tagColor: "bg-red-100 text-red-700",      description: "Deeply hardened" },
+} as const;
+
+export type Difficulty = keyof typeof DIFFICULTY_CONFIG;
 
 // Fallback: map gender to default voice (used when no explicit voice is set)
 export function genderToVoice(gender: string): string {
