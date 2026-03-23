@@ -7,7 +7,7 @@ import { genderToVoice, DIFFICULTY_CONFIG } from "@shared/models/persona";
 import { z } from "zod";
 import OpenAI from "openai";
 import { ensureCompatibleFormat, speechToText } from "./replit_integrations/audio";
-import { AccessToken, RoomServiceClient } from "livekit-server-sdk";
+import { AccessToken, RoomServiceClient, AgentDispatchClient } from "livekit-server-sdk";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -427,6 +427,10 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
     const svc = new RoomServiceClient(livekitUrl, apiKey, apiSecret);
     await svc.createRoom({ name: roomName, metadata: roomMetadata });
 
+    // Explicitly dispatch the named agent to this room
+    const dispatchClient = new AgentDispatchClient(livekitUrl, apiKey, apiSecret);
+    await dispatchClient.createDispatch(roomName, "gracetalk-agent");
+
     const at = new AccessToken(apiKey, apiSecret, { identity, metadata: roomMetadata });
     at.addGrant({ roomJoin: true, room: roomName, canPublish: true, canSubscribe: true });
     const token = await at.toJwt();
@@ -497,9 +501,12 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
     });
 
     // Create the room with metadata so the agent can read it via ctx.room.metadata
-    // Agent auto-joins via WorkerOptions AUTO mode (no explicit dispatch needed)
     const svc = new RoomServiceClient(livekitUrl, apiKey, apiSecret);
     await svc.createRoom({ name: roomName, metadata: roomMetadata });
+
+    // Explicitly dispatch the named agent to this room (more reliable than AUTO dispatch)
+    const dispatchClient = new AgentDispatchClient(livekitUrl, apiKey, apiSecret);
+    await dispatchClient.createDispatch(roomName, "gracetalk-agent");
 
     const at = new AccessToken(apiKey, apiSecret, {
       identity,
