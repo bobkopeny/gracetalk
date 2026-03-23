@@ -31,6 +31,9 @@ export interface IStorage {
   upsertUserProgress(userId: string, personaId: number, score: number): Promise<void>;
   getUserProgress(userId: string): Promise<UserProgress[]>;
 
+  // Cross-conversation memory
+  getPreviousMessages(userId: string, personaId: number, excludeConversationId: number, limit: number): Promise<Message[]>;
+
   // Admin
   countAllUsers(): Promise<number>;
   countAllConversations(): Promise<number>;
@@ -209,6 +212,27 @@ export class DatabaseStorage implements IStorage {
 
   async getUserProgress(userId: string): Promise<UserProgress[]> {
     return db.select().from(userProgress).where(eq(userProgress.userId, userId));
+  }
+
+  async getPreviousMessages(userId: string, personaId: number, excludeConversationId: number, limit: number): Promise<Message[]> {
+    // Get messages from past conversations with this persona, most recent conversations first
+    const rows = await db
+      .select({ message: messages })
+      .from(messages)
+      .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+      .where(
+        and(
+          eq(conversations.userId, userId),
+          eq(conversations.personaId, personaId),
+          sql`${conversations.id} != ${excludeConversationId}`,
+          sql`${messages.content} != ''`
+        )
+      )
+      .orderBy(desc(messages.createdAt))
+      .limit(limit);
+
+    // Return in chronological order so the context reads naturally
+    return rows.map(r => r.message).reverse();
   }
 
   async countAllUsers(): Promise<number> {

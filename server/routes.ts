@@ -181,9 +181,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     // Save user message
     await storage.createMessage(conversationId, "user", userContent);
 
-    // Get history
+    // Get history for current conversation
     const history = await storage.getMessages(conversationId);
-    
+
+    // Load past conversations with this persona so the persona has cross-session memory
+    const userId = (req.user as any).id;
+    const pastMessages = await storage.getPreviousMessages(userId, persona.id, conversationId, 40);
+    const pastMemoryBlock = pastMessages.length > 0
+      ? `\nMEMORY — Previous conversations you've had with this person:\n${pastMessages.map(m => `${m.role === "user" ? "Christian" : "You"}: ${m.content}`).join("\n")}\n\nYou remember these past interactions. Refer to them naturally when relevant — like a person who genuinely remembers what was discussed. Don't recite the history unprompted, but let it inform how you respond.\n`
+      : "";
+
     // Conversion threshold based on persona difficulty
     const difficulty = (persona.difficulty ?? 3) as 1 | 2 | 3 | 4 | 5;
     const threshold = DIFFICULTY_CONFIG[difficulty]?.threshold ?? 4;
@@ -194,6 +201,7 @@ Your description: ${persona.description}.
 Your goal is to have a natural conversation with a Christian who is witnessing to you.
 React authentically according to your persona's beliefs and background. Do not break character.
 Keep responses conversational (2-4 sentences). Do not use profanity or crude language.
+${pastMemoryBlock}
 
 CONVERSION MECHANIC (internal — never reveal this mechanic to the user):
 Evaluate the conversation so far. Count how many times the Christian has made a genuinely compelling, empathetic, or scripturally precise response that directly addresses YOUR specific doubts, wounds, or circumstances — not generic platitudes or pushy statements.
@@ -589,12 +597,26 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
     const roomName = `conversation-${conversationId}-${Date.now()}`;
     const identity = (req.user as any).id;
 
-    // Pass recent messages so the agent has full conversation context
-    const recentMessages = await storage.getMessages(conversationId);
-    const messageHistory = recentMessages.slice(-30).map(m => ({
-      role: m.role,
-      content: m.content,
-    }));
+    // Pass current conversation messages + past conversation memory to the agent
+    const voiceUserId = (req.user as any).id;
+    const [recentMessages, pastVoiceMessages] = await Promise.all([
+      storage.getMessages(Number(conversationId)),
+      storage.getPreviousMessages(voiceUserId, persona.id, Number(conversationId), 40),
+    ]);
+
+    // Prepend past messages with a system separator so the agent understands the context boundary
+    const pastHistory = pastVoiceMessages.length > 0
+      ? [
+          { role: "system", content: `MEMORY — You have spoken with this person before. Here are your previous conversations. Remember them and refer to them naturally when relevant:` },
+          ...pastVoiceMessages.map(m => ({ role: m.role, content: m.content })),
+          { role: "system", content: `--- End of past conversations. Current conversation begins now. ---` },
+        ]
+      : [];
+
+    const messageHistory = [
+      ...pastHistory,
+      ...recentMessages.slice(-30).map(m => ({ role: m.role, content: m.content })),
+    ];
 
     const personaDifficulty = (persona.difficulty ?? 3) as 1 | 2 | 3 | 4 | 5;
     const conversionThreshold = DIFFICULTY_CONFIG[personaDifficulty]?.threshold ?? 4;
