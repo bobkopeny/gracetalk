@@ -90,6 +90,36 @@ export function useGenerateFeedback() {
   });
 }
 
+// User Progress
+export function useUserProgress() {
+  return useQuery({
+    queryKey: ["/api/user/progress"],
+    queryFn: async () => {
+      const res = await fetch("/api/user/progress", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch progress");
+      return res.json() as Promise<Array<{ id: number; personaId: number; bestScore: number; passed: boolean; attempts: number }>>;
+    },
+  });
+}
+
+// User Stats
+export function useUserStats() {
+  return useQuery({
+    queryKey: ["/api/user/stats"],
+    queryFn: async () => {
+      const res = await fetch("/api/user/stats", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch stats");
+      return res.json() as Promise<{
+        totalConversations: number;
+        personasPracticed: number;
+        passRate: number;
+        conversionsAchieved: number;
+        bestScores: Array<{ personaId: number; personaName: string; bestScore: number; passed: boolean; attempts: number }>;
+      }>;
+    },
+  });
+}
+
 // Get Feedback
 export function useFeedback(conversationId: number) {
   return useQuery({

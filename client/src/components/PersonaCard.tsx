@@ -10,9 +10,10 @@ interface PersonaCardProps {
   onStartChat: (id: number) => void;
   onDelete?: (id: number) => void;
   compact?: boolean;
+  progress?: { bestScore: number; passed: boolean; attempts: number };
 }
 
-export function PersonaCard({ persona, onStartChat, onDelete, compact = false }: PersonaCardProps) {
+export function PersonaCard({ persona, onStartChat, onDelete, compact = false, progress }: PersonaCardProps) {
   const updatePersona = useUpdatePersona();
   const currentVoice = persona.voice ?? "Aria";
 
@@ -33,6 +34,18 @@ export function PersonaCard({ persona, onStartChat, onDelete, compact = false }:
             <span className={`inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${diffConfig.tagColor}`}>
               {"★".repeat(diffConfig.stars)}{"☆".repeat(5 - diffConfig.stars)} {diffConfig.label}
             </span>
+            {progress && progress.attempts > 0 && (
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                {progress.passed && (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                    ✓ Passed
+                  </span>
+                )}
+                <span className="text-[10px] text-muted-foreground">
+                  Best: {progress.bestScore}/100 · {progress.attempts} {progress.attempts === 1 ? "try" : "tries"}
+                </span>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-1 -mt-2 -mr-2">
             {onDelete && (

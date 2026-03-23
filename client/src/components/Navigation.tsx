@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-import { LogOut, MessageSquare, Users, LayoutDashboard, Shield, BookOpen } from "lucide-react";
+import { LogOut, Users, LayoutDashboard, Shield, BookOpen, GraduationCap, BarChart2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +11,8 @@ export function Navigation() {
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/personas", label: "My Personas", icon: Users },
+    { href: "/training", label: "Training", icon: GraduationCap },
+    { href: "/my-stats", label: "My Stats", icon: BarChart2 },
     { href: "/history", label: "History", icon: BookOpen },
   ];
 
@@ -87,7 +89,8 @@ export function MobileNav() {
   const navItems = [
     { href: "/dashboard", label: "Home", icon: LayoutDashboard },
     { href: "/personas", label: "Personas", icon: Users },
-    { href: "/history", label: "History", icon: BookOpen },
+    { href: "/training", label: "Training", icon: GraduationCap },
+    { href: "/my-stats", label: "Stats", icon: BarChart2 },
   ];
 
   return (

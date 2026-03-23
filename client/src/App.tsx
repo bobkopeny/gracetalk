@@ -15,6 +15,9 @@ import ChatSession from "@/pages/ChatSession";
 import Personas from "@/pages/Personas";
 import FeedbackPage from "@/pages/FeedbackPage";
 import History from "@/pages/History";
+import Training from "@/pages/Training";
+import MyStats from "@/pages/MyStats";
+import AdminDashboard from "@/pages/AdminDashboard";
 import NotFound from "@/pages/not-found";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -58,6 +61,15 @@ function Router() {
       </Route>
       <Route path="/feedback/:id">
         <ProtectedRoute component={FeedbackPage} />
+      </Route>
+      <Route path="/training">
+        <ProtectedRoute component={Training} />
+      </Route>
+      <Route path="/my-stats">
+        <ProtectedRoute component={MyStats} />
+      </Route>
+      <Route path="/admin">
+        <ProtectedRoute component={AdminDashboard} />
       </Route>
       <Route component={NotFound} />
     </Switch>

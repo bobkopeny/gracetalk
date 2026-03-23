@@ -5,7 +5,7 @@ import { usePersona } from "@/hooks/use-personas";
 import { Navigation, MobileHeader } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Send, CheckCircle2, Mic, MicOff } from "lucide-react";
+import { Loader2, Send, CheckCircle2, Mic, MicOff, HelpCircle, Lightbulb, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 import { useVoiceRecorder, useVoiceStream } from "../../replit_integrations/audio";
@@ -16,6 +16,8 @@ export default function ChatSession() {
   const conversationId = Number(id);
   const [, setLocation] = useLocation();
   const [input, setInput] = useState("");
+  const [hint, setHint] = useState<string | null>(null);
+  const [hintLoading, setHintLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { data: conversation, isLoading, refetch } = useConversation(conversationId);
@@ -73,6 +75,20 @@ export default function ChatSession() {
     }
   };
 
+  const handleHelp = async () => {
+    setHintLoading(true);
+    try {
+      const res = await fetch(`/api/conversations/${conversationId}/help`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await res.json();
+      setHint(data.hint);
+    } finally {
+      setHintLoading(false);
+    }
+  };
+
   const handleEndSession = () => {
     generateFeedback.mutate(conversationId, {
       onSuccess: () => {
@@ -108,6 +124,16 @@ export default function ChatSession() {
           conversationId={conversationId}
           onTranscriptsUpdated={refetch}
         />
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleHelp}
+          disabled={hintLoading}
+          className="gap-2 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+        >
+          {hintLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <HelpCircle className="w-4 h-4" />}
+          <span className="hidden sm:inline">Help</span>
+        </Button>
         <Button
           variant="secondary"
           onClick={handleEndSession}
@@ -159,6 +185,17 @@ export default function ChatSession() {
           </div>
         )}
       </div>
+
+      {/* Help Hint Banner */}
+      {hint && (
+        <div className="bg-amber-50 border-t border-amber-200 px-4 py-3 flex items-start gap-3 shrink-0">
+          <Lightbulb className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+          <p className="text-sm text-amber-800 flex-1">{hint}</p>
+          <button onClick={() => setHint(null)} className="text-amber-400 hover:text-amber-600">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Input Area */}
       <div className="bg-card p-4 border-t border-border shrink-0">

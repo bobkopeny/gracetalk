@@ -1,6 +1,6 @@
 import { useAuth } from "@/hooks/use-auth";
 import { usePersonas } from "@/hooks/use-personas";
-import { useConversations, useCreateConversation } from "@/hooks/use-conversations";
+import { useConversations, useCreateConversation, useUserProgress } from "@/hooks/use-conversations";
 import { Navigation, MobileHeader, MobileNav } from "@/components/Navigation";
 import { PersonaCard } from "@/components/PersonaCard";
 import { CreatePersonaDialog } from "@/components/CreatePersonaDialog";
@@ -13,6 +13,8 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { data: personas, isLoading: personasLoading } = usePersonas();
   const { data: conversations, isLoading: conversationsLoading } = useConversations();
+  const { data: progress } = useUserProgress();
+  const progressMap = Object.fromEntries((progress ?? []).map(p => [p.personaId, p]));
   const createConversation = useCreateConversation();
   const [, setLocation] = useLocation();
 
@@ -72,6 +74,7 @@ export default function Dashboard() {
                     <PersonaCard
                       persona={persona}
                       onStartChat={handleStartChat}
+                      progress={progressMap[persona.id]}
                     />
                   </div>
                 ))}

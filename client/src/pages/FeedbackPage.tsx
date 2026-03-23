@@ -3,7 +3,7 @@ import { useFeedback } from "@/hooks/use-conversations";
 import { useConversation } from "@/hooks/use-conversations";
 import { Navigation, MobileHeader, MobileNav } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
-import { Loader2, ArrowLeft, RefreshCw, Lightbulb, BookOpen, Star, Heart } from "lucide-react";
+import { Loader2, ArrowLeft, RefreshCw, Lightbulb, BookOpen, Star, Heart, Youtube } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
 function ScoreRing({ score }: { score: number }) {
@@ -61,6 +61,8 @@ export default function FeedbackPage() {
   const score: number | null = (feedback as any).score ?? null;
   const converted: boolean = (feedback as any).converted ?? false;
   const scoreBreakdown: string = (feedback as any).scoreBreakdown ?? "";
+  const youtubeSearches: Record<string, string> = (feedback as any).youtubeSearches ?? {};
+  const ytEntries = Object.entries(youtubeSearches);
 
   return (
     <div className="min-h-screen bg-muted/20 pb-20 md:pb-0">
@@ -141,6 +143,23 @@ export default function FeedbackPage() {
                   <div className="prose prose-sm prose-orange max-w-none">
                      <ReactMarkdown>{feedback.improvements}</ReactMarkdown>
                   </div>
+                  {ytEntries.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {ytEntries.map(([label, query]) => (
+                        <a
+                          key={label}
+                          href={`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <Button variant="outline" size="sm" className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50 text-xs">
+                            <Youtube className="w-3.5 h-3.5" />
+                            {label}
+                          </Button>
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -47,4 +47,21 @@ export async function runMigrations() {
   } catch (err: any) {
     console.error("[db] Migration warning (non-fatal):", err?.message);
   }
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_progress (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR NOT NULL REFERENCES users(id),
+        persona_id INTEGER NOT NULL REFERENCES personas(id),
+        best_score INTEGER NOT NULL DEFAULT 0,
+        passed BOOLEAN NOT NULL DEFAULT false,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, persona_id)
+      );
+    `);
+    console.log("[db] Migration: user_progress table ready");
+  } catch (err: any) {
+    console.error("[db] Migration warning (non-fatal):", err?.message);
+  }
 }

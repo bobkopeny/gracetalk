@@ -8,6 +8,7 @@ import { z } from "zod";
 import OpenAI from "openai";
 import { ensureCompatibleFormat, speechToText } from "./replit_integrations/audio";
 import { AccessToken, RoomServiceClient, AgentDispatchClient } from "livekit-server-sdk";
+import rateLimit from "express-rate-limit";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -303,8 +304,10 @@ Return ONLY valid JSON with exactly these fields (no markdown, no code fences):
   "biblicalReferences": "markdown list of 2-4 scriptures that could have been effective, with brief why",
   "score": <integer 0-100>,
   "scoreBreakdown": "1-2 sentence explanation of the score",
-  "converted": <true or false>
+  "converted": <true or false>,
+  "youtubeSearches": { "<short 3-6 word label>": "<YouTube search query>", ... }
 }
+For youtubeSearches, include one entry per improvement point — a short label (3-6 words) mapped to a specific YouTube search query (e.g. "Responding to problem of evil", "Sharing faith with atheists apologetics"). Omit if there are no improvements.
 Keep the tone warm, constructive, and encouraging. Be specific to this persona's background.`;
 
     const response = await openai.chat.completions.create({
@@ -328,6 +331,12 @@ Keep the tone warm, constructive, and encouraging. Be specific to this persona's
       await storage.markConversationConverted(conversationId);
     }
 
+    // Update user progress with the score
+    if (parsed.score != null) {
+      const userId = (req.user as any).id;
+      await storage.upsertUserProgress(userId, conversation.personaId, parsed.score);
+    }
+
     res.status(201).json({ ...feedback, ...parsed });
   });
 
@@ -348,6 +357,97 @@ Keep the tone warm, constructive, and encouraging. Be specific to this persona's
     res.json({ ...feedback, ...parsed });
   });
 
+  // --- Help Button (mid-conversation coaching) ---
+  app.post("/api/conversations/:id/help", requireAuth, async (req, res) => {
+    const conversationId = Number(req.params.id);
+    const conversation = await storage.getConversation(conversationId);
+    if (!conversation || conversation.userId !== (req.user as any).id) {
+      return res.status(404).json({ message: "Conversation not found" });
+    }
+    const persona = await storage.getPersona(conversation.personaId);
+    const messages = await storage.getMessages(conversationId);
+
+    const coachPrompt = `You are a biblical witnessing coach helping someone mid-conversation.
+The user is practicing with a persona: ${persona?.name} — ${persona?.description}.
+Review their conversation and give ONE concrete, 1-2 sentence suggestion they can use RIGHT NOW.
+Be specific to this persona's resistance or emotional state. Start with "Try:" and give actual words they could say.
+No preamble, no explanation, just the suggestion.`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: coachPrompt },
+        { role: "user", content: JSON.stringify(messages.slice(-10).map(m => ({ role: m.role, content: m.content }))) },
+      ],
+      max_tokens: 120,
+    });
+
+    const hint = response.choices[0].message.content || "";
+    res.json({ hint });
+  });
+
+  // --- User Progress ---
+  app.get("/api/user/progress", requireAuth, async (req, res) => {
+    const userId = (req.user as any).id;
+    const progress = await storage.getUserProgress(userId);
+    res.json(progress);
+  });
+
+  // --- User Stats ---
+  app.get("/api/user/stats", requireAuth, async (req, res) => {
+    const userId = (req.user as any).id;
+    const [convRows, progressRows, allPersonas] = await Promise.all([
+      storage.listConversations(userId),
+      storage.getUserProgress(userId),
+      storage.listPersonas(userId),
+    ]);
+
+    const totalConversations = convRows.length;
+    const personasPracticed = new Set(convRows.map(c => c.personaId)).size;
+    const passRate = progressRows.length > 0
+      ? Math.round((progressRows.filter(p => p.passed).length / progressRows.length) * 100)
+      : 0;
+    const conversionsAchieved = convRows.filter(c => c.converted).length;
+
+    const bestScores = progressRows.map(p => ({
+      personaId: p.personaId,
+      personaName: allPersonas.find(pe => pe.id === p.personaId)?.name ?? "Unknown",
+      bestScore: p.bestScore,
+      passed: p.passed,
+      attempts: p.attempts,
+    }));
+
+    res.json({ totalConversations, personasPracticed, passRate, conversionsAchieved, bestScores });
+  });
+
+  // --- Admin ---
+  const requireAdmin = (req: any, res: any, next: any) => {
+    const adminId = process.env.ADMIN_USER_ID;
+    if (!adminId) return res.status(503).json({ message: "Admin not configured" });
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
+    if ((req.user as any).id !== adminId) return res.status(403).json({ message: "Forbidden" });
+    next();
+  };
+
+  app.get("/api/admin/stats", requireAdmin, async (_req, res) => {
+    const [totalUsers, totalConversations, recentConversations] = await Promise.all([
+      storage.countAllUsers(),
+      storage.countAllConversations(),
+      storage.getRecentConversations(20),
+    ]);
+    res.json({ totalUsers, totalConversations, recentConversations });
+  });
+
+  app.get("/api/admin/personas", requireAdmin, async (_req, res) => {
+    const all = await storage.listAllPersonas();
+    res.json(all);
+  });
+
+  app.delete("/api/admin/personas/:id", requireAdmin, async (req, res) => {
+    await storage.deletePersona(Number(req.params.id));
+    res.status(204).send();
+  });
+
   // --- Demo (no auth required) ---
   const DEMO_PERSONAS = [
     { id: "open-heart", name: "The Open Heart", description: "A spiritually curious person who grew up without strong religious ties but feels an inner longing for something more. They ask genuine questions about meaning, purpose, and whether God exists. They are warm, emotionally open, and receptive to personal stories and experiences. They may have tried meditation or new-age spirituality. They are not hostile—just searching. They respond well to compassion, personal testimony, and genuine connection." },
@@ -357,11 +457,19 @@ Keep the tone warm, constructive, and encouraging. Be specific to this persona's
     { id: "skeptical-atheist", name: "The Skeptical Atheist", description: "An intellectually curious person who has concluded there is no God based on science, logic, and the problem of evil. Familiar with common Christian arguments and has counter-arguments ready. Challenges the reliability of the Bible, the existence of miracles, and the exclusivity of Christianity. Not mean-spirited, but firm and confident. Values evidence and rational thought. Responds best to honest intellectual engagement, not emotional appeals. Is willing to follow the argument wherever it leads if you engage respectfully and thoughtfully." },
   ];
 
+  const guestRateLimit = rateLimit({
+    windowMs: 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: "Too many requests. Please try again in a minute." },
+  });
+
   app.get("/api/demo/personas", (_req, res) => {
     res.json(DEMO_PERSONAS);
   });
 
-  app.post("/api/demo/chat", async (req, res) => {
+  app.post("/api/demo/chat", guestRateLimit, async (req, res) => {
     const { personaId, messages: history, content } = req.body;
     if (!personaId || !content) {
       return res.status(400).json({ message: "personaId and content are required" });
@@ -399,7 +507,7 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
   });
 
   // --- Demo LiveKit token (no auth required) ---
-  app.post("/api/demo/livekit/token", async (req, res) => {
+  app.post("/api/demo/livekit/token", guestRateLimit, async (req, res) => {
     const { personaId } = req.body;
     if (!personaId) return res.status(400).json({ message: "personaId is required" });
 

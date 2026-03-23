@@ -1,5 +1,5 @@
-import { users, personas, conversations, messages, feedbacks } from "@shared/schema";
-import type { User, UpsertUser, Persona, InsertPersona, Conversation, Message, Feedback } from "@shared/schema";
+import { users, personas, conversations, messages, feedbacks, userProgress } from "@shared/schema";
+import type { User, UpsertUser, Persona, InsertPersona, Conversation, Message, Feedback, UserProgress } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, count, sql } from "drizzle-orm";
 
@@ -26,6 +26,16 @@ export interface IStorage {
   // Feedback
   createFeedback(conversationId: number, content: string): Promise<Feedback>;
   getFeedback(conversationId: number): Promise<Feedback | undefined>;
+
+  // Progress
+  upsertUserProgress(userId: string, personaId: number, score: number): Promise<void>;
+  getUserProgress(userId: string): Promise<UserProgress[]>;
+
+  // Admin
+  countAllUsers(): Promise<number>;
+  countAllConversations(): Promise<number>;
+  getRecentConversations(limit: number): Promise<(Conversation & { personaName: string })[]>;
+  listAllPersonas(): Promise<Persona[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -180,6 +190,49 @@ export class DatabaseStorage implements IStorage {
   async getFeedback(conversationId: number): Promise<Feedback | undefined> {
     const [feedback] = await db.select().from(feedbacks).where(eq(feedbacks.conversationId, conversationId));
     return feedback;
+  }
+
+  async upsertUserProgress(userId: string, personaId: number, score: number): Promise<void> {
+    await db
+      .insert(userProgress)
+      .values({ userId, personaId, bestScore: score, passed: score >= 60, attempts: 1 })
+      .onConflictDoUpdate({
+        target: [userProgress.userId, userProgress.personaId],
+        set: {
+          bestScore: sql`GREATEST(user_progress.best_score, ${score})`,
+          passed: sql`user_progress.passed OR ${score >= 60}`,
+          attempts: sql`user_progress.attempts + 1`,
+          updatedAt: new Date(),
+        },
+      });
+  }
+
+  async getUserProgress(userId: string): Promise<UserProgress[]> {
+    return db.select().from(userProgress).where(eq(userProgress.userId, userId));
+  }
+
+  async countAllUsers(): Promise<number> {
+    const [row] = await db.select({ n: count(users.id) }).from(users);
+    return row.n;
+  }
+
+  async countAllConversations(): Promise<number> {
+    const [row] = await db.select({ n: count(conversations.id) }).from(conversations);
+    return row.n;
+  }
+
+  async getRecentConversations(limit: number): Promise<(Conversation & { personaName: string })[]> {
+    const rows = await db
+      .select({ conversation: conversations, personaName: personas.name })
+      .from(conversations)
+      .innerJoin(personas, eq(conversations.personaId, personas.id))
+      .orderBy(desc(conversations.createdAt))
+      .limit(limit);
+    return rows.map(r => ({ ...r.conversation, personaName: r.personaName }));
+  }
+
+  async listAllPersonas(): Promise<Persona[]> {
+    return db.select().from(personas).orderBy(desc(personas.createdAt));
   }
 }
 
