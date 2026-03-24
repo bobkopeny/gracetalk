@@ -2,8 +2,9 @@ import { type Persona, XAI_VOICES, DIFFICULTY_CONFIG } from "@shared/models/pers
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MessageCircle, Trash2 } from "lucide-react";
+import { MessageCircle, Trash2, Lock } from "lucide-react";
 import { useUpdatePersona } from "@/hooks/use-personas";
+import { cn } from "@/lib/utils";
 
 interface PersonaCardProps {
   persona: Persona;
@@ -11,9 +12,11 @@ interface PersonaCardProps {
   onDelete?: (id: number) => void;
   compact?: boolean;
   progress?: { bestScore: number; passed: boolean; attempts: number };
+  locked?: boolean;
+  unlocksAtLevel?: number;
 }
 
-export function PersonaCard({ persona, onStartChat, onDelete, compact = false, progress }: PersonaCardProps) {
+export function PersonaCard({ persona, onStartChat, onDelete, compact = false, progress, locked = false, unlocksAtLevel }: PersonaCardProps) {
   const updatePersona = useUpdatePersona();
   const currentVoice = persona.voice ?? "Aria";
 
@@ -25,7 +28,10 @@ export function PersonaCard({ persona, onStartChat, onDelete, compact = false, p
   const diffConfig = DIFFICULTY_CONFIG[difficulty] ?? DIFFICULTY_CONFIG[3];
 
   return (
-    <Card className="hover:shadow-lg hover:border-primary/20 transition-all duration-300 group relative overflow-hidden">
+    <Card className={cn(
+      "transition-all duration-300 group relative overflow-hidden",
+      locked ? "opacity-60 grayscale" : "hover:shadow-lg hover:border-primary/20"
+    )}>
       <div className="absolute top-0 left-0 w-1 h-full bg-primary/20 group-hover:bg-primary transition-colors" />
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
@@ -93,13 +99,20 @@ export function PersonaCard({ persona, onStartChat, onDelete, compact = false, p
       )}
 
       <CardFooter>
-        <Button
-          onClick={() => onStartChat(persona.id)}
-          className="w-full gap-2 shadow-sm group-hover:shadow-md transition-all"
-        >
-          <MessageCircle className="w-4 h-4" />
-          Start Practice
-        </Button>
+        {locked ? (
+          <Button disabled className="w-full gap-2 opacity-50 cursor-not-allowed">
+            <Lock className="w-4 h-4" />
+            {unlocksAtLevel ? `Complete Level ${unlocksAtLevel - 1} to Unlock` : "Locked"}
+          </Button>
+        ) : (
+          <Button
+            onClick={() => onStartChat(persona.id)}
+            className="w-full gap-2 shadow-sm group-hover:shadow-md transition-all"
+          >
+            <MessageCircle className="w-4 h-4" />
+            Start Practice
+          </Button>
+        )}
       </CardFooter>
     </Card>
   );

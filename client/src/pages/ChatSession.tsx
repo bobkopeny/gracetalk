@@ -5,7 +5,7 @@ import { usePersona } from "@/hooks/use-personas";
 import { Navigation, MobileHeader } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Send, CheckCircle2, Mic, MicOff, HelpCircle, Lightbulb, X } from "lucide-react";
+import { Loader2, Send, CheckCircle2, Mic, MicOff, HelpCircle, Lightbulb, X, Pause } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 import { useVoiceRecorder, useVoiceStream } from "../../replit_integrations/audio";
@@ -133,6 +133,15 @@ export default function ChatSession() {
         >
           {hintLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <HelpCircle className="w-4 h-4" />}
           <span className="hidden sm:inline">Help</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setLocation("/dashboard")}
+          className="gap-2 text-muted-foreground hover:text-foreground"
+        >
+          <Pause className="w-4 h-4" />
+          <span className="hidden sm:inline">Pause</span>
         </Button>
         <Button
           variant="secondary"

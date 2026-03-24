@@ -119,7 +119,7 @@ export class DatabaseStorage implements IStorage {
         name: "Hurt by the Church",
         gender: "female" as const,
         voice: "Sal",
-        difficulty: 3,
+        difficulty: 4,
         description:
           "Was raised in church but experienced real pain—judgmental community, a pastor who failed them, legalism, or feeling rejected during a personal crisis. Has genuine wounds and is guarded. May believe in God somewhere deep down but is angry at Christians and the institution. Quick to bring up hypocrisy and past hurts. Needs to feel heard and validated before any spiritual conversation can go deeper. Does NOT respond well to platitudes or being told to 'just forgive.' Responds to empathy, humility, and honest acknowledgment of the church's failures.",
       },

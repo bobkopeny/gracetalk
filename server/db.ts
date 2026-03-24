@@ -48,6 +48,15 @@ export async function runMigrations() {
     console.error("[db] Migration warning (non-fatal):", err?.message);
   }
   try {
+    // Fix "Hurt by the Church" difficulty: it should be level 4, not 3
+    await pool.query(`
+      UPDATE personas SET difficulty = 4 WHERE name = 'Hurt by the Church' AND difficulty = 3;
+    `);
+    console.log("[db] Migration: Hurt by the Church difficulty corrected to 4");
+  } catch (err: any) {
+    console.error("[db] Migration warning (non-fatal):", err?.message);
+  }
+  try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS user_progress (
         id SERIAL PRIMARY KEY,
