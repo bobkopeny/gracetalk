@@ -1,16 +1,18 @@
 import { useParams, Link } from "wouter";
-import { useFeedback } from "@/hooks/use-conversations";
+import { useFeedback, useUserProgress } from "@/hooks/use-conversations";
 import { useConversation } from "@/hooks/use-conversations";
+import { usePersona } from "@/hooks/use-personas";
 import { Navigation, MobileHeader, MobileNav } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
-import { Loader2, ArrowLeft, RefreshCw, Lightbulb, BookOpen, Star, Heart, Youtube } from "lucide-react";
+import { Loader2, ArrowLeft, RefreshCw, Lightbulb, BookOpen, Star, Heart, Youtube, Trophy, Lock } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { DIFFICULTY_CONFIG } from "@shared/models/persona";
 
 function ScoreRing({ score }: { score: number }) {
   const radius = 40;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (score / 100) * circumference;
-  const color = score >= 80 ? "#16a34a" : score >= 60 ? "#2563eb" : score >= 40 ? "#d97706" : "#dc2626";
+  const offset = circumference - (score / 10) * circumference;
+  const color = score >= 8 ? "#16a34a" : score >= 6 ? "#2563eb" : score >= 4 ? "#d97706" : "#dc2626";
 
   return (
     <div className="relative inline-flex items-center justify-center">
@@ -27,7 +29,7 @@ function ScoreRing({ score }: { score: number }) {
       </svg>
       <div className="absolute text-center">
         <span className="text-2xl font-bold text-foreground">{score}</span>
-        <span className="block text-[10px] text-muted-foreground leading-none">/ 100</span>
+        <span className="block text-[10px] text-muted-foreground leading-none">/ 10</span>
       </div>
     </div>
   );
@@ -39,6 +41,8 @@ export default function FeedbackPage() {
 
   const { data: feedback, isLoading: feedbackLoading } = useFeedback(conversationId);
   const { data: conversation } = useConversation(conversationId);
+  const { data: persona } = usePersona(conversation?.personaId || 0);
+  const { data: progress } = useUserProgress();
 
   if (feedbackLoading) {
     return (
@@ -63,6 +67,16 @@ export default function FeedbackPage() {
   const scoreBreakdown: string = (feedback as any).scoreBreakdown ?? "";
   const youtubeSearches: Record<string, string> = (feedback as any).youtubeSearches ?? {};
   const ytEntries = Object.entries(youtubeSearches);
+
+  // Level unlock logic
+  const personaDifficulty = (persona?.difficulty ?? 3) as 1 | 2 | 3 | 4 | 5;
+  const passed = score !== null && score >= 7;
+  const nextLevel = Math.min(5, personaDifficulty + 1) as 1 | 2 | 3 | 4 | 5;
+  const nextLevelConfig = DIFFICULTY_CONFIG[nextLevel];
+  const wasAlreadyPassed = (progress ?? []).some(
+    (p) => p.personaId === conversation?.personaId && p.passed && p.attempts > 1
+  );
+  const showLevelUnlock = passed && personaDifficulty < 5 && !wasAlreadyPassed;
 
   return (
     <div className="min-h-screen bg-muted/20 pb-20 md:pb-0">
@@ -94,7 +108,7 @@ export default function FeedbackPage() {
               ) : (
                 <>
                   <p className="text-lg font-semibold text-foreground">
-                    {score !== null && score >= 80 ? "Excellent Session" : score !== null && score >= 60 ? "Strong Session" : score !== null && score >= 40 ? "Good Effort" : "Keep Practicing"}
+                    {score !== null && score >= 8 ? "Excellent Session" : score !== null && score >= 6 ? "Strong Session" : score !== null && score >= 4 ? "Good Effort" : "Keep Practicing"}
                   </p>
                   <p className="text-sm text-muted-foreground">No conversion this time — keep building that connection</p>
                 </>
@@ -106,11 +120,39 @@ export default function FeedbackPage() {
             {score !== null && (
               <div className="flex gap-1">
                 {[1,2,3,4,5].map(i => (
-                  <Star key={i} className={`w-5 h-5 ${i <= Math.round(score / 20) ? "text-amber-400 fill-amber-400" : "text-gray-300"}`} />
+                  <Star key={i} className={`w-5 h-5 ${i <= Math.round(score / 2) ? "text-amber-400 fill-amber-400" : "text-gray-300"}`} />
                 ))}
               </div>
             )}
           </div>
+
+          {/* Level Unlock Banner */}
+          {showLevelUnlock && (
+            <div className="rounded-2xl p-6 flex flex-col sm:flex-row items-center gap-4 shadow-sm border bg-amber-50 border-amber-200">
+              <div className="w-14 h-14 rounded-full bg-amber-100 border-2 border-amber-400 flex items-center justify-center shrink-0">
+                <Trophy className="w-7 h-7 text-amber-600" />
+              </div>
+              <div className="flex-1 text-center sm:text-left">
+                <p className="text-lg font-bold text-amber-800">Level {nextLevel} Unlocked!</p>
+                <p className="text-sm text-amber-700 mt-0.5">
+                  You scored well enough to unlock <span className="font-semibold">{nextLevelConfig.label}</span> — {nextLevelConfig.description}
+                </p>
+              </div>
+              <Link href="/dashboard">
+                <Button className="bg-amber-500 hover:bg-amber-600 text-white gap-2 shrink-0">
+                  Start Level {nextLevel}
+                </Button>
+              </Link>
+            </div>
+          )}
+
+          {/* Passing score reminder when already passed */}
+          {passed && personaDifficulty === 5 && (
+            <div className="rounded-2xl p-5 flex items-center gap-4 shadow-sm border bg-green-50 border-green-200">
+              <Trophy className="w-6 h-6 text-green-600 shrink-0" />
+              <p className="text-green-800 font-semibold">You've mastered the highest difficulty — Expert level!</p>
+            </div>
+          )}
 
           {/* Overall Analysis */}
           <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">

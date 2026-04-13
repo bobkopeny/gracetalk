@@ -48,7 +48,7 @@ export function PersonaCard({ persona, onStartChat, onDelete, compact = false, p
                   </span>
                 )}
                 <span className="text-[10px] text-muted-foreground">
-                  Best: {progress.bestScore}/100 · {progress.attempts} {progress.attempts === 1 ? "try" : "tries"}
+                  Best: {progress.bestScore}/10 · {progress.attempts} {progress.attempts === 1 ? "try" : "tries"}
                 </span>
               </div>
             )}

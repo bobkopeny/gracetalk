@@ -33,12 +33,28 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   };
 
   // --- Personas ---
+  const DEFAULT_PERSONA_DIFFICULTY: Record<string, number> = {
+    "The Open Heart": 1,
+    "The Spiritual Agnostic": 2,
+    "The Professional": 3,
+    "Hurt by the Church": 4,
+    "The Skeptical Atheist": 5,
+  };
+
   app.get(api.personas.list.path, requireAuth, async (req, res) => {
     const userId = (req.user as any).id;
     let personas = await storage.listPersonas(userId);
     if (personas.length === 0) {
       await storage.seedDefaultPersonas(userId);
       personas = await storage.listPersonas(userId);
+    }
+    // Fix difficulty for default personas that may have been seeded with wrong values
+    for (const persona of personas) {
+      const expected = DEFAULT_PERSONA_DIFFICULTY[persona.name];
+      if (expected !== undefined && persona.difficulty !== expected) {
+        await storage.updatePersona(persona.id, { difficulty: expected });
+        persona.difficulty = expected;
+      }
     }
     res.json(personas);
   });
@@ -295,14 +311,21 @@ Analyze the conversation between a Christian witness (User) and ${persona?.name}
 Persona Description: ${persona?.description}.
 Persona Difficulty: ${diffLabel} (${difficulty}/5).
 
-Scoring rubric (0–100):
-- 0–20: Ineffective — pushy, ignored persona's concerns, no empathy
-- 21–40: Developing — some good moments but significant missed opportunities
-- 41–60: Competent — solid approach, engaged with persona's concerns
-- 61–80: Strong — excellent empathy, good biblical grounding, meaningful dialogue
-- 81–100: Expert — masterful witnessing, addressed every objection, genuine connection
+Scoring rubric (1–10):
+- 1–2: Ineffective — pushy, ignored persona's concerns, no empathy
+- 3–4: Developing — some good moments but significant missed opportunities
+- 5–6: Competent — solid approach, engaged with persona's concerns
+- 7–8: Strong — excellent empathy, good biblical grounding, meaningful dialogue
+- 9–10: Expert — masterful witnessing, addressed every objection, genuine connection
 
-If the persona clearly prayed the sinner's prayer (said words like "Lord Jesus... I am a sinner... forgiveness... follow You"), award up to 15 bonus points added to the base score (capped at 100), and set converted to true.
+CONVERSION DETECTION — set converted to true if ANY of these occurred:
+- The persona prayed the sinner's prayer or repeated it after the witness
+- The persona said they want to accept Jesus / believe in Christ / give their life to God
+- The persona agreed to pray and the witness led them through a prayer they accepted
+- The persona expressed they prayed with the witness or received Christ
+- The persona showed clear openness to faith and agreed to follow Jesus
+
+If converted is true, the score should be at least 8. A successful conversion with excellent witnessing earns a 9 or 10.
 
 Return ONLY valid JSON with exactly these fields (no markdown, no code fences):
 {
@@ -310,7 +333,7 @@ Return ONLY valid JSON with exactly these fields (no markdown, no code fences):
   "strengths": "markdown bullet list of 2-4 things the witness did well",
   "improvements": "markdown bullet list of 2-4 specific ways to improve for THIS persona",
   "biblicalReferences": "markdown list of 2-4 scriptures that could have been effective, with brief why",
-  "score": <integer 0-100>,
+  "score": <integer 1-10>,
   "scoreBreakdown": "1-2 sentence explanation of the score",
   "converted": <true or false>,
   "youtubeSearches": { "<short 3-6 word label>": "<YouTube search query>", ... }

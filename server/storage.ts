@@ -198,12 +198,12 @@ export class DatabaseStorage implements IStorage {
   async upsertUserProgress(userId: string, personaId: number, score: number): Promise<void> {
     await db
       .insert(userProgress)
-      .values({ userId, personaId, bestScore: score, passed: score >= 60, attempts: 1 })
+      .values({ userId, personaId, bestScore: score, passed: score >= 7, attempts: 1 })
       .onConflictDoUpdate({
         target: [userProgress.userId, userProgress.personaId],
         set: {
           bestScore: sql`GREATEST(user_progress.best_score, ${score})`,
-          passed: sql`user_progress.passed OR ${score >= 60}`,
+          passed: sql`user_progress.passed OR ${score >= 7}`,
           attempts: sql`user_progress.attempts + 1`,
           updatedAt: new Date(),
         },
