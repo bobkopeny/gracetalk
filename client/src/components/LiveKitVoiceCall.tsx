@@ -16,6 +16,7 @@ interface LiveKitVoiceCallProps {
   personaId?: string; // for demo/guest mode
   onTranscriptsUpdated?: () => void;
   onActiveChange?: (active: boolean) => void;
+  onCallEnded?: () => void;
 }
 
 function VoiceCallActive({ onHangup, micUnavailable }: { onHangup: () => void; micUnavailable: boolean }) {
@@ -73,7 +74,7 @@ function VoiceCallActive({ onHangup, micUnavailable }: { onHangup: () => void; m
   );
 }
 
-export function LiveKitVoiceCall({ conversationId, personaId, onTranscriptsUpdated, onActiveChange }: LiveKitVoiceCallProps) {
+export function LiveKitVoiceCall({ conversationId, personaId, onTranscriptsUpdated, onActiveChange, onCallEnded }: LiveKitVoiceCallProps) {
   const [token, setToken] = useState<string | null>(null);
   const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -133,8 +134,12 @@ export function LiveKitVoiceCall({ conversationId, personaId, onTranscriptsUpdat
     setServerUrl(null);
     setMicUnavailable(false);
     onActiveChange?.(false);
-    setTimeout(() => onTranscriptsUpdated?.(), 1500);
-  }, [onTranscriptsUpdated, onActiveChange]);
+    if (onCallEnded) {
+      onCallEnded();
+    } else {
+      setTimeout(() => onTranscriptsUpdated?.(), 1500);
+    }
+  }, [onTranscriptsUpdated, onActiveChange, onCallEnded]);
 
   if (!isActive || !token || !serverUrl) {
     return (

@@ -97,6 +97,18 @@ export default function ChatSession() {
     });
   };
 
+  const handleVoiceCallEnd = () => {
+    // Wait for transcripts to save, then auto-generate feedback
+    refetch();
+    setTimeout(() => {
+      generateFeedback.mutate(conversationId, {
+        onSuccess: () => {
+          setLocation(`/feedback/${conversationId}`);
+        },
+      });
+    }, 2000);
+  };
+
   if (isLoading || !conversation) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-muted/20">
@@ -123,6 +135,7 @@ export default function ChatSession() {
         <LiveKitVoiceCall
           conversationId={conversationId}
           onTranscriptsUpdated={refetch}
+          onCallEnded={handleVoiceCallEnd}
         />
         <Button
           variant="ghost"
