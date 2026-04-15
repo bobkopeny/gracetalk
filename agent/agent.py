@@ -190,33 +190,24 @@ async def entrypoint(ctx: JobContext) -> None:
         elif role == "assistant":
             initial_ctx.add_message(role="assistant", content=content)
 
-    logger.info("Creating xAI RealtimeModel | voice=%s", persona_voice)
-    try:
-        llm = xai.realtime.RealtimeModel(
+    session = AgentSession(
+        llm=xai.realtime.RealtimeModel(
+            model="grok-2-realtime",
             voice=persona_voice,
             api_key=os.environ["XAI_API_KEY"],
-        )
-    except Exception as e:
-        logger.error("Failed to create xAI RealtimeModel: %s", e, exc_info=True)
-        raise
+        ),
+    )
 
-    session = AgentSession(llm=llm)
-
-    logger.info("Starting AgentSession for room: %s", ctx.room.name)
-    try:
-        await session.start(
-            room=ctx.room,
-            agent=WitnessPersona(
-                persona_name,
-                persona_description,
-                conversation_id,
-                conversion_threshold=conversion_threshold,
-                chat_ctx=initial_ctx if prior_messages else None,
-            ),
-        )
-    except Exception as e:
-        logger.error("Failed to start AgentSession: %s", e, exc_info=True)
-        raise
+    await session.start(
+        room=ctx.room,
+        agent=WitnessPersona(
+            persona_name,
+            persona_description,
+            conversation_id,
+            conversion_threshold=conversion_threshold,
+            chat_ctx=initial_ctx if prior_messages else None,
+        ),
+    )
 
     logger.info("Agent session started for room: %s", ctx.room.name)
 
@@ -227,9 +218,8 @@ async def entrypoint(ctx: JobContext) -> None:
     # Trigger the persona to greet the user first (system prompt already instructs agent to speak first)
     try:
         await session.generate_reply()
-        logger.info("Initial greeting triggered successfully")
     except Exception as e:
-        logger.error("Could not trigger initial greeting: %s", e, exc_info=True)
+        logger.warning("Could not trigger initial greeting: %s", e)
 
 
 if __name__ == "__main__":
