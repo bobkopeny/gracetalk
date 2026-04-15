@@ -192,7 +192,6 @@ async def entrypoint(ctx: JobContext) -> None:
 
     session = AgentSession(
         llm=xai.realtime.RealtimeModel(
-            model="grok-2-realtime",
             voice=persona_voice,
             api_key=os.environ["XAI_API_KEY"],
         ),
