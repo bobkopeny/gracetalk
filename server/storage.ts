@@ -168,7 +168,7 @@ export class DatabaseStorage implements IStorage {
     const rows = await db
       .select({
         conversation: conversations,
-        personaName: personas.name,
+        personaName: sql<string>`COALESCE(${personas.name}, 'Unknown Persona')`,
         messageCount: count(messages.id),
         lastMessage: sql<string | null>`(
           SELECT content FROM messages
@@ -178,7 +178,7 @@ export class DatabaseStorage implements IStorage {
         )`,
       })
       .from(conversations)
-      .innerJoin(personas, eq(conversations.personaId, personas.id))
+      .leftJoin(personas, eq(conversations.personaId, personas.id))
       .leftJoin(messages, eq(messages.conversationId, conversations.id))
       .where(eq(conversations.userId, userId))
       .groupBy(conversations.id, personas.name)
@@ -314,7 +314,7 @@ export class DatabaseStorage implements IStorage {
     const rows = await db
       .select({
         conversation: conversations,
-        personaName: personas.name,
+        personaName: sql<string>`COALESCE(${personas.name}, 'Unknown Persona')`,
         lastMessage: sql<string | null>`(
           SELECT content FROM messages
           WHERE conversation_id = ${conversations.id}
@@ -323,7 +323,7 @@ export class DatabaseStorage implements IStorage {
         )`,
       })
       .from(conversations)
-      .innerJoin(personas, eq(conversations.personaId, personas.id))
+      .leftJoin(personas, eq(conversations.personaId, personas.id))
       .orderBy(desc(conversations.createdAt))
       .limit(limit);
     return rows.map(r => ({ ...r.conversation, personaName: r.personaName, lastMessage: r.lastMessage }));
