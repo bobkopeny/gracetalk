@@ -23,6 +23,9 @@ export interface IStorage {
   createMessage(conversationId: number, role: string, content: string): Promise<Message>;
   getMessages(conversationId: number): Promise<Message[]>;
 
+  // Conversations
+  deleteConversation(id: number): Promise<void>;
+
   // Feedback
   createFeedback(conversationId: number, content: string): Promise<Feedback>;
   getFeedback(conversationId: number): Promise<Feedback | undefined>;
@@ -199,6 +202,10 @@ export class DatabaseStorage implements IStorage {
 
   async getMessages(conversationId: number): Promise<Message[]> {
     return db.select().from(messages).where(eq(messages.conversationId, conversationId)).orderBy(messages.createdAt);
+  }
+
+  async deleteConversation(id: number): Promise<void> {
+    await db.delete(conversations).where(eq(conversations.id, id));
   }
 
   async createFeedback(conversationId: number, content: string): Promise<Feedback> {

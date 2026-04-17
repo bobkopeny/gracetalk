@@ -166,6 +166,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json({ ...conversation, messages });
   });
 
+  app.delete("/api/conversations/:id", requireAuth, async (req, res) => {
+    const conversation = await storage.getConversation(Number(req.params.id));
+    if (!conversation || conversation.userId !== (req.user as any).id) {
+      return res.status(404).json({ message: "Not found" });
+    }
+    await storage.deleteConversation(Number(req.params.id));
+    res.status(204).send();
+  });
+
   // --- Messages & AI ---
   app.post(api.conversations.messages.create.path, requireAuth, async (req, res) => {
     const conversationId = Number(req.params.id);
