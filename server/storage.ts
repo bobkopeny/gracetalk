@@ -286,11 +286,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async saveVoiceTranscriptFallback(conversationId: number, segments: Array<{ role: string; text: string }>): Promise<void> {
-    const existing = await db.select({ id: messages.id }).from(messages).where(eq(messages.conversationId, conversationId)).limit(1);
-    if (existing.length > 0) return; // Agent already saved messages
+    const existing = await db.select({ content: messages.content }).from(messages).where(eq(messages.conversationId, conversationId));
+    const savedContents = new Set(existing.map(m => m.content.trim()));
     for (const seg of segments) {
-      if (seg.text.trim()) {
-        await db.insert(messages).values({ conversationId, role: seg.role === "user" ? "user" : "assistant", content: seg.text });
+      const text = seg.text.trim();
+      if (text && !savedContents.has(text)) {
+        await db.insert(messages).values({ conversationId, role: seg.role === "user" ? "user" : "assistant", content: text });
+        savedContents.add(text);
       }
     }
   }

@@ -63,21 +63,25 @@ def save_message_to_app(conversation_id: int, role: str, content: str) -> None:
     if not api_url or not secret:
         return
 
-    try:
-        payload = json.dumps({"role": role, "content": content}).encode()
-        req = urllib.request.Request(
-            f"{api_url}/api/agent/conversations/{conversation_id}/messages",
-            data=payload,
-            headers={
-                "Content-Type": "application/json",
-                "X-Agent-Secret": secret,
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=5) as r:
-            r.read()
-    except Exception as exc:
-        logger.warning("Failed to save message to app: %s", exc)
+    for attempt in range(3):
+        try:
+            payload = json.dumps({"role": role, "content": content}).encode()
+            req = urllib.request.Request(
+                f"{api_url}/api/agent/conversations/{conversation_id}/messages",
+                data=payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Agent-Secret": secret,
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=15) as r:
+                r.read()
+            return
+        except Exception as exc:
+            logger.warning("Failed to save message (attempt %d/3): %s", attempt + 1, exc)
+            if attempt < 2:
+                import time; time.sleep(1)
 
 
 class WitnessPersona(Agent):
