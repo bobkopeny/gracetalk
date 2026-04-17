@@ -1,117 +1,53 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useLocation } from "wouter";
-import { useConversation, useSendMessage, useGenerateFeedback } from "@/hooks/use-conversations";
+import { useConversation, useGenerateFeedback } from "@/hooks/use-conversations";
 import { usePersona } from "@/hooks/use-personas";
-import { Navigation, MobileHeader } from "@/components/Navigation";
+import { Navigation } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Send, CheckCircle2, Mic, MicOff, HelpCircle, Lightbulb, X, Pause } from "lucide-react";
-import { cn } from "@/lib/utils";
-import ReactMarkdown from "react-markdown";
-import { useVoiceRecorder, useVoiceStream } from "../../replit_integrations/audio";
+import { Loader2, Phone, ArrowLeft, HelpCircle, CheckCircle2 } from "lucide-react";
 import { LiveKitVoiceCall } from "@/components/LiveKitVoiceCall";
 
 export default function ChatSession() {
   const { id } = useParams();
   const conversationId = Number(id);
   const [, setLocation] = useLocation();
-  const [input, setInput] = useState("");
-  const [hint, setHint] = useState<string | null>(null);
-  const [hintLoading, setHintLoading] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
 
   const { data: conversation, isLoading, refetch } = useConversation(conversationId);
   const { data: persona } = usePersona(conversation?.personaId || 0);
-  
-  const sendMessage = useSendMessage();
   const generateFeedback = useGenerateFeedback();
 
-  const recorder = useVoiceRecorder();
-  const stream = useVoiceStream({
-    onUserTranscript: (text) => {
-      // User transcript will be added to the messages via refetch when done
-    },
-    onTranscript: (delta, full) => {
-      // Real-time text update if needed
-    },
-    onComplete: () => {
-      refetch();
-    },
-  });
+  const startCallRef = useRef<(() => void) | null>(null);
+  const [callActive, setCallActive] = useState(false);
+  const [callConnecting, setCallConnecting] = useState(false);
 
-  const isVoiceActive = recorder.state === "recording" || stream.playbackState === "playing";
-
-  // Scroll to bottom on new messages
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [conversation?.messages, stream.playbackState]);
-
-  const handleSend = () => {
-    if (!input.trim() || sendMessage.isPending) return;
-    
-    sendMessage.mutate(
-      { conversationId, content: input },
-      {
-        onSuccess: () => setInput(""),
-      }
-    );
+  const handleActiveChange = (active: boolean) => {
+    setCallActive(active);
+    if (active) setCallConnecting(false);
   };
 
-  const handleMicClick = async () => {
-    if (recorder.state === "recording") {
-      const blob = await recorder.stopRecording();
-      await stream.streamVoiceResponse(`/api/conversations/${conversationId}/messages`, blob);
-    } else {
-      await recorder.startRecording();
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
-
-  const handleHelp = async () => {
-    setHintLoading(true);
-    try {
-      const res = await fetch(`/api/conversations/${conversationId}/help`, {
-        method: "POST",
-        credentials: "include",
-      });
-      const data = await res.json();
-      setHint(data.hint);
-    } finally {
-      setHintLoading(false);
-    }
-  };
-
-  const handleEndSession = () => {
-    generateFeedback.mutate(conversationId, {
-      onSuccess: () => {
-        setLocation(`/feedback/${conversationId}`);
-      },
-    });
+  const handleStartVoice = () => {
+    setCallConnecting(true);
+    startCallRef.current?.();
   };
 
   const handleVoiceCallEnd = async () => {
-    // Poll until message count stabilizes before generating feedback,
-    // so the agent's final callbacks (including the prayer) are all saved.
+    setCallActive(false);
     let lastCount = conversation?.messages?.length ?? 0;
     for (let i = 0; i < 8; i++) {
       await new Promise((r) => setTimeout(r, 1500));
       const result = await refetch();
       const newCount = result.data?.messages?.length ?? 0;
-      if (newCount === lastCount && i >= 2) break; // stable for at least one cycle
+      if (newCount === lastCount && i >= 2) break;
       lastCount = newCount;
     }
     generateFeedback.mutate(conversationId, {
-      onSuccess: () => {
-        setLocation(`/feedback/${conversationId}`);
-      },
+      onSuccess: () => setLocation(`/feedback/${conversationId}`),
+    });
+  };
+
+  const handleEndManual = () => {
+    generateFeedback.mutate(conversationId, {
+      onSuccess: () => setLocation(`/feedback/${conversationId}`),
     });
   };
 
@@ -123,137 +59,104 @@ export default function ChatSession() {
     );
   }
 
+  const hasMessages = conversation.messages.length > 0;
+
   return (
     <div className="min-h-screen bg-muted/20 md:pl-64 flex flex-col h-screen overflow-hidden">
       <Navigation />
-      
-      {/* Header */}
-      <div className="bg-card border-b border-border p-4 flex items-center justify-between shrink-0 shadow-sm z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
-            {persona?.name?.[0]}
-          </div>
-          <div>
-            <h2 className="font-bold text-foreground leading-none">{persona?.name}</h2>
-            <p className="text-xs text-muted-foreground mt-1">Practice Session</p>
-          </div>
-        </div>
-        <LiveKitVoiceCall
-          conversationId={conversationId}
-          personaName={persona?.name}
-          onTranscriptsUpdated={refetch}
-          onCallEnded={handleVoiceCallEnd}
-          onSwitchToType={() => refetch()}
-        />
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleHelp}
-          disabled={hintLoading}
-          className="gap-2 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-        >
-          {hintLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <HelpCircle className="w-4 h-4" />}
-          <span className="hidden sm:inline">Help</span>
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setLocation("/dashboard")}
-          className="gap-2 text-muted-foreground hover:text-foreground"
-        >
-          <Pause className="w-4 h-4" />
-          <span className="hidden sm:inline">Pause</span>
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={handleEndSession}
-          disabled={generateFeedback.isPending}
-          className="gap-2"
-        >
-          {generateFeedback.isPending ? (
-             <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <CheckCircle2 className="w-4 h-4" />
-          )}
-          End & Get Feedback
-        </Button>
-      </div>
 
-      {/* Chat Area */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6" ref={scrollRef}>
-        {conversation.messages.map((msg) => {
-          const isUser = msg.role === 'user';
-          return (
-            <div
-              key={msg.id}
-              className={cn(
-                "flex w-full max-w-3xl mx-auto animate-in",
-                isUser ? "justify-end" : "justify-start"
-              )}
-            >
-              <div
-                className={cn(
-                  "max-w-[85%] sm:max-w-[75%] rounded-2xl px-5 py-3 shadow-sm text-sm sm:text-base leading-relaxed",
-                  isUser
-                    ? "bg-primary text-primary-foreground rounded-tr-sm"
-                    : "bg-card text-card-foreground rounded-tl-sm border border-border/50"
-                )}
-              >
-                <div className="whitespace-pre-wrap">{msg.content}</div>
-              </div>
-            </div>
-          );
-        })}
-        
-        {sendMessage.isPending && (
-          <div className="flex justify-start w-full max-w-3xl mx-auto">
-            <div className="bg-card px-4 py-3 rounded-2xl rounded-tl-sm border border-border/50 flex items-center gap-2">
-              <span className="w-2 h-2 bg-primary/40 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-              <span className="w-2 h-2 bg-primary/40 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-              <span className="w-2 h-2 bg-primary/40 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-            </div>
-          </div>
+      {/* Header */}
+      <div className="bg-card border-b border-border px-4 py-3 flex items-center gap-3 shrink-0 shadow-sm z-10">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="shrink-0"
+          onClick={() => setLocation("/dashboard")}
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </Button>
+        <div className="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold shrink-0">
+          {persona?.name?.[0] ?? "?"}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-foreground leading-none truncate">{persona?.name}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Practice Session</p>
+        </div>
+        {hasMessages && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleEndManual}
+            disabled={generateFeedback.isPending}
+            className="gap-2 shrink-0"
+          >
+            {generateFeedback.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4" />
+            )}
+            <span className="hidden sm:inline">End &amp; Get Feedback</span>
+            <span className="sm:hidden">Feedback</span>
+          </Button>
         )}
       </div>
 
-      {/* Help Hint Banner */}
-      {hint && (
-        <div className="bg-amber-50 border-t border-amber-200 px-4 py-3 flex items-start gap-3 shrink-0">
-          <Lightbulb className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-          <p className="text-sm text-amber-800 flex-1">{hint}</p>
-          <button onClick={() => setHint(null)} className="text-amber-400 hover:text-amber-600">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
+      {/* Pre-call centered content */}
+      <div className="flex-1 flex flex-col items-center justify-center p-8 gap-6 text-center">
+        {/* Persona description */}
+        {persona?.description && (
+          <p className="text-sm text-muted-foreground max-w-sm leading-relaxed line-clamp-3">
+            {persona.description}
+          </p>
+        )}
 
-      {/* Input Area */}
-      <div className="bg-card p-4 border-t border-border shrink-0">
-        <div className="max-w-3xl mx-auto flex gap-3">
-          <Textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type your message..."
-            className="min-h-[50px] max-h-[150px] resize-none py-3 px-4 rounded-xl border-border focus:ring-primary/20"
-            autoFocus
-          />
-          <Button
-            onClick={handleMicClick}
-            variant={recorder.state === "recording" ? "destructive" : "outline"}
-            className="h-auto rounded-xl px-4"
-          >
-            {recorder.state === "recording" ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-          </Button>
-          <Button 
-            onClick={handleSend} 
-            disabled={!input.trim() || sendMessage.isPending || isVoiceActive}
-            className="h-auto rounded-xl px-6"
-          >
-            {sendMessage.isPending || isVoiceActive ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-          </Button>
+        {/* Big phone icon */}
+        <div className="w-28 h-28 rounded-full bg-teal-600 flex items-center justify-center shadow-lg">
+          <Phone className="w-14 h-14 text-white" />
         </div>
+
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold text-foreground">Real-time Voice Chat</h1>
+          <p className="text-muted-foreground max-w-xs">
+            Experience instant, natural conversation with{" "}
+            <span className="font-medium text-foreground">{persona?.name ?? "your persona"}</span>.
+            Just like talking on the phone — no waiting!
+          </p>
+        </div>
+
+        <Button
+          className="bg-teal-600 hover:bg-teal-700 text-white px-10 h-12 rounded-full text-base gap-2 shadow-md"
+          onClick={handleStartVoice}
+          disabled={callConnecting || callActive}
+        >
+          {callConnecting ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : (
+            <Phone className="w-5 h-5" />
+          )}
+          {callConnecting ? "Connecting..." : "Start Conversation"}
+        </Button>
+
+        <p className="text-xs text-muted-foreground">Tap to start conversation</p>
+
+        {hasMessages && (
+          <p className="text-xs text-muted-foreground">
+            This session already has {conversation.messages.length} saved messages.
+          </p>
+        )}
       </div>
+
+      {/* LiveKitVoiceCall — hidden trigger, managed via startCallRef */}
+      <LiveKitVoiceCall
+        conversationId={conversationId}
+        personaName={persona?.name}
+        startCallRef={startCallRef}
+        onConnectingChange={setCallConnecting}
+        onActiveChange={handleActiveChange}
+        onTranscriptsUpdated={refetch}
+        onCallEnded={handleVoiceCallEnd}
+        onSwitchToType={() => refetch()}
+      />
     </div>
   );
 }

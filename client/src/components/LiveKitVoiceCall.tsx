@@ -288,6 +288,8 @@ interface LiveKitVoiceCallProps {
   onActiveChange?: (active: boolean) => void;
   onCallEnded?: () => void;
   onSwitchToType?: () => void;
+  startCallRef?: React.MutableRefObject<(() => void) | null>;
+  onConnectingChange?: (connecting: boolean) => void;
 }
 
 export function LiveKitVoiceCall({
@@ -298,6 +300,8 @@ export function LiveKitVoiceCall({
   onActiveChange,
   onCallEnded,
   onSwitchToType,
+  startCallRef,
+  onConnectingChange,
 }: LiveKitVoiceCallProps) {
   const [token, setToken] = useState<string | null>(null);
   const [serverUrl, setServerUrl] = useState<string | null>(null);
@@ -310,6 +314,7 @@ export function LiveKitVoiceCall({
 
   const startCall = useCallback(async () => {
     setIsConnecting(true);
+    onConnectingChange?.(true);
     setMicUnavailable(false);
     try {
       try {
@@ -356,8 +361,13 @@ export function LiveKitVoiceCall({
       alert("Could not start voice call: " + (e?.message ?? "Unknown error"));
     } finally {
       setIsConnecting(false);
+      onConnectingChange?.(false);
     }
-  }, [conversationId, personaId, isDemo, onActiveChange]);
+  }, [conversationId, personaId, isDemo, onActiveChange, onConnectingChange]);
+
+  useEffect(() => {
+    if (startCallRef) startCallRef.current = startCall;
+  }, [startCall, startCallRef]);
 
   const handleDisconnected = useCallback(() => {
     setIsActive(false);
@@ -382,6 +392,7 @@ export function LiveKitVoiceCall({
   }, []);
 
   if (!isActive || !token || !serverUrl) {
+    if (startCallRef) return null;
     return (
       <Button
         onClick={startCall}
