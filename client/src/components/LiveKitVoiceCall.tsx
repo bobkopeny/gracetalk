@@ -1,26 +1,107 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   LiveKitRoom,
   useVoiceAssistant,
   BarVisualizer,
   RoomAudioRenderer,
-  DisconnectButton,
+  useRoomContext,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
 import { Button } from "@/components/ui/button";
-import { Phone, PhoneOff, Loader2, MicOff } from "lucide-react";
+import { Phone, PhoneOff, Loader2, MicOff, Keyboard, HelpCircle, Lightbulb, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface LiveKitVoiceCallProps {
-  conversationId?: number;
-  personaId?: string; // for demo/guest mode
-  onTranscriptsUpdated?: () => void;
-  onActiveChange?: (active: boolean) => void;
-  onCallEnded?: () => void;
+interface TranscriptSegment {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
 }
 
-function VoiceCallActive({ onHangup, micUnavailable }: { onHangup: () => void; micUnavailable: boolean }) {
+function VoiceSession({
+  conversationId,
+  onEnd,
+  onSwitchToType,
+  micUnavailable,
+  personaName,
+}: {
+  conversationId?: number;
+  onEnd: () => void;
+  onSwitchToType?: () => void;
+  micUnavailable: boolean;
+  personaName?: string;
+}) {
   const { state, audioTrack } = useVoiceAssistant();
+  const room = useRoomContext();
+  const [segments, setSegments] = useState<TranscriptSegment[]>([]);
+  const [hint, setHint] = useState<string | null>(null);
+  const [hintLoading, setHintLoading] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Listen for native LiveKit transcription events (may not fire with xAI realtime)
+  useEffect(() => {
+    const handleTranscription = (segs: any[], participant: any) => {
+      const isLocal = participant?.identity === room.localParticipant?.identity;
+      const role: "user" | "assistant" = isLocal ? "user" : "assistant";
+      setSegments((prev) => {
+        const updated = [...prev];
+        for (const seg of segs) {
+          const idx = updated.findIndex((s) => s.id === seg.id);
+          if (idx >= 0) {
+            updated[idx] = { id: seg.id, role, text: seg.text };
+          } else {
+            updated.push({ id: seg.id, role, text: seg.text });
+          }
+        }
+        return updated;
+      });
+    };
+
+    room.on("transcriptionReceived", handleTranscription);
+    return () => {
+      room.off("transcriptionReceived", handleTranscription);
+    };
+  }, [room]);
+
+  // Fallback: poll DB for messages saved by the agent (xAI plugin doesn't forward transcription events)
+  useEffect(() => {
+    if (!conversationId) return;
+    const seenIds = new Set<number>();
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/conversations/${conversationId}`, { credentials: "include" });
+        if (!res.ok) return;
+        const data = await res.json();
+        const msgs: Array<{ id: number; role: string; content: string }> = data.messages ?? [];
+        const newMsgs = msgs.filter((m) => !seenIds.has(m.id));
+        if (newMsgs.length === 0) return;
+        newMsgs.forEach((m) => seenIds.add(m.id));
+        setSegments((prev) => {
+          const updated = [...prev];
+          for (const msg of newMsgs) {
+            const role: "user" | "assistant" = msg.role === "user" ? "user" : "assistant";
+            const syntheticId = `db-${msg.id}`;
+            if (!updated.find((s) => s.id === syntheticId)) {
+              updated.push({ id: syntheticId, role, text: msg.content });
+            }
+          }
+          return updated;
+        });
+      } catch {}
+    };
+
+    const interval = setInterval(poll, 2500);
+    return () => clearInterval(interval);
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [segments]);
+
+  const isLive = ["listening", "thinking", "speaking"].includes(state);
 
   const stateLabel: Record<string, string> = {
     disconnected: "Disconnected",
@@ -31,55 +112,199 @@ function VoiceCallActive({ onHangup, micUnavailable }: { onHangup: () => void; m
     speaking: "Speaking...",
   };
 
-  const isLive = ["listening", "thinking", "speaking"].includes(state);
+  const handleEndClick = async () => {
+    if (conversationId && segments.length > 0) {
+      fetch(`/api/conversations/${conversationId}/voice-transcript`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ segments: segments.map(s => ({ role: s.role, text: s.text })) }),
+      }).catch(() => {});
+    }
+    await room.disconnect();
+    onEnd();
+  };
 
-  return (
-    <div className="flex items-center gap-3">
-      {micUnavailable && (
-        <span className="flex items-center gap-1 text-xs text-amber-600 font-medium hidden sm:flex">
-          <MicOff className="w-3 h-3" />
-          No mic
+  const handleTypeClick = async () => {
+    onSwitchToType?.();
+    await room.disconnect();
+  };
+
+  const handleHelp = async () => {
+    if (!conversationId) return;
+    setHintLoading(true);
+    try {
+      const res = await fetch(`/api/conversations/${conversationId}/help`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await res.json();
+      setHint(data.hint);
+    } finally {
+      setHintLoading(false);
+    }
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 md:pl-64 bg-muted/20 z-30 flex flex-col">
+      {/* Status bar */}
+      <div className="bg-card border-b border-border px-4 py-3 flex items-center gap-3 shrink-0 shadow-sm">
+        <div className="w-10 h-7 shrink-0">
+          <BarVisualizer
+            state={state}
+            barCount={5}
+            trackRef={audioTrack}
+            className="w-full h-full"
+            options={{ minHeight: 2 }}
+          />
+        </div>
+        <span
+          className={cn(
+            "text-sm font-medium",
+            isLive ? "text-primary" : "text-muted-foreground"
+          )}
+        >
+          {stateLabel[state] ?? "Connected"}
         </span>
-      )}
-
-      {/* Compact visualizer */}
-      <div className="w-20 h-8 flex items-center">
-        <BarVisualizer
-          state={state}
-          barCount={5}
-          trackRef={audioTrack}
-          className="w-full"
-          options={{ minHeight: 3 }}
-        />
+        {micUnavailable && (
+          <span className="flex items-center gap-1 text-xs text-amber-600">
+            <MicOff className="w-3 h-3" />
+            No mic
+          </span>
+        )}
+        {personaName && (
+          <span className="ml-auto text-xs font-medium text-muted-foreground truncate max-w-[120px]">
+            {personaName}
+          </span>
+        )}
       </div>
 
-      <span className={cn(
-        "text-xs font-medium hidden sm:block",
-        isLive ? "text-primary" : "text-muted-foreground"
-      )}>
-        {stateLabel[state] ?? "Connected"}
-      </span>
+      {/* Transcript area */}
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4" ref={scrollRef}>
+        {segments.length === 0 && (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-sm text-muted-foreground">Speak naturally to begin...</p>
+          </div>
+        )}
+        {segments.map((seg) => {
+          const isUser = seg.role === "user";
+          return (
+            <div
+              key={seg.id}
+              className={cn(
+                "flex w-full max-w-3xl mx-auto animate-in",
+                isUser ? "justify-end" : "justify-start"
+              )}
+            >
+              <div
+                className={cn(
+                  "max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 shadow-sm text-sm leading-relaxed space-y-1",
+                  isUser
+                    ? "bg-primary text-primary-foreground rounded-tr-sm"
+                    : "bg-card text-card-foreground rounded-tl-sm border border-border/50"
+                )}
+              >
+                <p
+                  className={cn(
+                    "text-[10px] font-medium",
+                    isUser ? "opacity-70" : "text-muted-foreground"
+                  )}
+                >
+                  {isUser ? "You" : personaName}
+                </p>
+                <p>{seg.text}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
-      <DisconnectButton onClick={onHangup}>
-        <Button variant="destructive" size="sm" className="gap-1.5 rounded-lg" asChild>
-          <span>
-            <PhoneOff className="w-3.5 h-3.5" />
-            End
-          </span>
-        </Button>
-      </DisconnectButton>
+      {/* Help hint banner */}
+      {hint && (
+        <div className="bg-amber-50 border-t border-amber-200 px-4 py-3 flex items-start gap-3 shrink-0">
+          <Lightbulb className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+          <p className="text-sm text-amber-800 flex-1">{hint}</p>
+          <button onClick={() => setHint(null)} className="text-amber-400 hover:text-amber-600">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Controls */}
+      <div className="bg-card border-t border-border p-4 shrink-0">
+        <div className="max-w-sm mx-auto flex flex-col items-center gap-3">
+          <div className="flex gap-3">
+            <Button
+              variant="destructive"
+              className="gap-2 px-6"
+              onClick={handleEndClick}
+            >
+              <PhoneOff className="w-4 h-4" />
+              End
+            </Button>
+            {onSwitchToType && (
+              <Button
+                variant="outline"
+                className="gap-2 px-4"
+                onClick={handleTypeClick}
+              >
+                <Keyboard className="w-4 h-4" />
+                Type
+              </Button>
+            )}
+            {conversationId && (
+              <Button
+                variant="outline"
+                className="gap-2 px-4"
+                onClick={handleHelp}
+                disabled={hintLoading}
+              >
+                {hintLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <HelpCircle className="w-4 h-4" />
+                )}
+                Help
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground text-center">
+            Speak naturally – or tap Type to write instead
+          </p>
+        </div>
+      </div>
 
       <RoomAudioRenderer />
-    </div>
+    </div>,
+    document.body
   );
 }
 
-export function LiveKitVoiceCall({ conversationId, personaId, onTranscriptsUpdated, onActiveChange, onCallEnded }: LiveKitVoiceCallProps) {
+interface LiveKitVoiceCallProps {
+  conversationId?: number;
+  personaId?: string;
+  personaName?: string;
+  onTranscriptsUpdated?: () => void;
+  onActiveChange?: (active: boolean) => void;
+  onCallEnded?: () => void;
+  onSwitchToType?: () => void;
+}
+
+export function LiveKitVoiceCall({
+  conversationId,
+  personaId,
+  personaName,
+  onTranscriptsUpdated,
+  onActiveChange,
+  onCallEnded,
+  onSwitchToType,
+}: LiveKitVoiceCallProps) {
   const [token, setToken] = useState<string | null>(null);
   const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isActive, setIsActive] = useState(false);
   const [micUnavailable, setMicUnavailable] = useState(false);
+  const switchingToTypeRef = useRef(false);
 
   const isDemo = !!personaId;
 
@@ -87,17 +312,23 @@ export function LiveKitVoiceCall({ conversationId, personaId, onTranscriptsUpdat
     setIsConnecting(true);
     setMicUnavailable(false);
     try {
-      // Request mic permission — non-fatal if device not found (listen-only mode)
       try {
         await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       } catch (micErr: any) {
-        if (micErr?.name === "NotAllowedError" || micErr?.name === "PermissionDeniedError") {
-          alert("Microphone access was denied. Please allow microphone access in your browser settings and try again.");
+        if (
+          micErr?.name === "NotAllowedError" ||
+          micErr?.name === "PermissionDeniedError"
+        ) {
+          alert(
+            "Microphone access was denied. Please allow microphone access in your browser settings and try again."
+          );
           setIsConnecting(false);
           return;
         }
-        // NotFoundError or other — no mic available, proceed in listen-only mode
-        console.warn("No microphone found, connecting in listen-only mode:", micErr?.message);
+        console.warn(
+          "No microphone found, connecting in listen-only mode:",
+          micErr?.message
+        );
         setMicUnavailable(true);
       }
 
@@ -128,18 +359,27 @@ export function LiveKitVoiceCall({ conversationId, personaId, onTranscriptsUpdat
     }
   }, [conversationId, personaId, isDemo, onActiveChange]);
 
-  const endCall = useCallback(() => {
+  const handleDisconnected = useCallback(() => {
     setIsActive(false);
     setToken(null);
     setServerUrl(null);
     setMicUnavailable(false);
     onActiveChange?.(false);
-    if (onCallEnded) {
+
+    if (switchingToTypeRef.current) {
+      switchingToTypeRef.current = false;
+      setTimeout(() => onTranscriptsUpdated?.(), 1500);
+      onSwitchToType?.();
+    } else if (onCallEnded) {
       onCallEnded();
     } else {
       setTimeout(() => onTranscriptsUpdated?.(), 1500);
     }
-  }, [onTranscriptsUpdated, onActiveChange, onCallEnded]);
+  }, [onTranscriptsUpdated, onActiveChange, onCallEnded, onSwitchToType]);
+
+  const handleSwitchToType = useCallback(() => {
+    switchingToTypeRef.current = true;
+  }, []);
 
   if (!isActive || !token || !serverUrl) {
     return (
@@ -167,9 +407,15 @@ export function LiveKitVoiceCall({ conversationId, personaId, onTranscriptsUpdat
       connect={true}
       audio={!micUnavailable}
       video={false}
-      onDisconnected={endCall}
+      onDisconnected={handleDisconnected}
     >
-      <VoiceCallActive onHangup={endCall} micUnavailable={micUnavailable} />
+      <VoiceSession
+        conversationId={conversationId}
+        onEnd={() => {}}
+        onSwitchToType={onSwitchToType !== undefined ? handleSwitchToType : undefined}
+        micUnavailable={micUnavailable}
+        personaName={personaName}
+      />
     </LiveKitRoom>
   );
 }

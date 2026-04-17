@@ -1,5 +1,5 @@
-import { users, personas, conversations, messages, feedbacks, userProgress } from "@shared/schema";
-import type { User, UpsertUser, Persona, InsertPersona, Conversation, Message, Feedback, UserProgress } from "@shared/schema";
+import { users, personas, conversations, messages, feedbacks, userProgress, userTestimonials } from "@shared/schema";
+import type { User, UpsertUser, Persona, InsertPersona, Conversation, Message, Feedback, UserProgress, UserTestimonial } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, count, sql } from "drizzle-orm";
 
@@ -9,7 +9,7 @@ export interface IStorage {
   upsertUser(user: UpsertUser): Promise<User>;
 
   // Personas
-  createPersona(persona: InsertPersona): Promise<Persona>;
+  createPersona(persona: InsertPersona & { userId: string }): Promise<Persona>;
   getPersona(id: number): Promise<Persona | undefined>;
   listPersonas(userId: string): Promise<Persona[]>;
   updatePersona(id: number, data: Partial<Pick<Persona, "gender" | "voice" | "difficulty">>): Promise<Persona>;
@@ -34,11 +34,27 @@ export interface IStorage {
   // Cross-conversation memory
   getPreviousMessages(userId: string, personaId: number, excludeConversationId: number, limit: number): Promise<Message[]>;
 
+  // Testimonials
+  createTestimonial(userId: string, displayName: string, email: string | null, content: string): Promise<UserTestimonial>;
+  listTestimonials(): Promise<UserTestimonial[]>;
+
+  // User activity feed
+  getUserActivity(userId: string, limit: number): Promise<Array<{ type: "started" | "prayer"; personaName: string; timestamp: string }>>;
+
+  // Full persona update (admin)
+  updatePersonaFull(id: number, data: Partial<Pick<Persona, "name" | "description" | "gender" | "voice" | "difficulty">>): Promise<Persona>;
+
+  // Voice transcript fallback (save client segments if agent didn't)
+  saveVoiceTranscriptFallback(conversationId: number, segments: Array<{ role: string; text: string }>): Promise<void>;
+
   // Admin
   countAllUsers(): Promise<number>;
   countAllConversations(): Promise<number>;
-  getRecentConversations(limit: number): Promise<(Conversation & { personaName: string })[]>;
+  countConvertedConversations(): Promise<number>;
+  getRecentConversations(limit: number): Promise<(Conversation & { personaName: string; lastMessage: string | null })[]>;
   listAllPersonas(): Promise<Persona[]>;
+  listAllUsers(): Promise<User[]>;
+  getPersonaStats(): Promise<Array<{ personaName: string; difficulty: number | null; totalSessions: number; prayerMoments: number }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -62,7 +78,7 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async createPersona(persona: InsertPersona): Promise<Persona> {
+  async createPersona(persona: InsertPersona & { userId: string }): Promise<Persona> {
     const [newPersona] = await db.insert(personas).values(persona).returning();
     return newPersona;
   }
@@ -235,6 +251,49 @@ export class DatabaseStorage implements IStorage {
     return rows.map(r => r.message).reverse();
   }
 
+  async createTestimonial(userId: string, displayName: string, email: string | null, content: string): Promise<UserTestimonial> {
+    const [t] = await db.insert(userTestimonials).values({ userId, displayName, email, content }).returning();
+    return t;
+  }
+
+  async listTestimonials(): Promise<UserTestimonial[]> {
+    return db.select().from(userTestimonials).orderBy(desc(userTestimonials.createdAt));
+  }
+
+  async getUserActivity(userId: string, limit: number): Promise<Array<{ type: "started" | "prayer"; personaName: string; timestamp: string }>> {
+    const convRows = await db
+      .select({ conversation: conversations, personaName: personas.name })
+      .from(conversations)
+      .innerJoin(personas, eq(conversations.personaId, personas.id))
+      .where(eq(conversations.userId, userId))
+      .orderBy(desc(conversations.createdAt))
+      .limit(limit);
+
+    const events: Array<{ type: "started" | "prayer"; personaName: string; timestamp: string }> = [];
+    for (const row of convRows) {
+      if (row.conversation.converted) {
+        events.push({ type: "prayer", personaName: row.personaName, timestamp: row.conversation.createdAt.toISOString() });
+      }
+      events.push({ type: "started", personaName: row.personaName, timestamp: row.conversation.createdAt.toISOString() });
+    }
+    return events.slice(0, limit);
+  }
+
+  async updatePersonaFull(id: number, data: Partial<Pick<Persona, "name" | "description" | "gender" | "voice" | "difficulty">>): Promise<Persona> {
+    const [updated] = await db.update(personas).set(data).where(eq(personas.id, id)).returning();
+    return updated;
+  }
+
+  async saveVoiceTranscriptFallback(conversationId: number, segments: Array<{ role: string; text: string }>): Promise<void> {
+    const existing = await db.select({ id: messages.id }).from(messages).where(eq(messages.conversationId, conversationId)).limit(1);
+    if (existing.length > 0) return; // Agent already saved messages
+    for (const seg of segments) {
+      if (seg.text.trim()) {
+        await db.insert(messages).values({ conversationId, role: seg.role === "user" ? "user" : "assistant", content: seg.text });
+      }
+    }
+  }
+
   async countAllUsers(): Promise<number> {
     const [row] = await db.select({ n: count(users.id) }).from(users);
     return row.n;
@@ -245,18 +304,51 @@ export class DatabaseStorage implements IStorage {
     return row.n;
   }
 
-  async getRecentConversations(limit: number): Promise<(Conversation & { personaName: string })[]> {
+  async countConvertedConversations(): Promise<number> {
+    const [row] = await db.select({ n: count(conversations.id) }).from(conversations).where(eq(conversations.converted, true));
+    return row.n;
+  }
+
+  async getRecentConversations(limit: number): Promise<(Conversation & { personaName: string; lastMessage: string | null })[]> {
     const rows = await db
-      .select({ conversation: conversations, personaName: personas.name })
+      .select({
+        conversation: conversations,
+        personaName: personas.name,
+        lastMessage: sql<string | null>`(
+          SELECT content FROM messages
+          WHERE conversation_id = ${conversations.id}
+          ORDER BY created_at DESC
+          LIMIT 1
+        )`,
+      })
       .from(conversations)
       .innerJoin(personas, eq(conversations.personaId, personas.id))
       .orderBy(desc(conversations.createdAt))
       .limit(limit);
-    return rows.map(r => ({ ...r.conversation, personaName: r.personaName }));
+    return rows.map(r => ({ ...r.conversation, personaName: r.personaName, lastMessage: r.lastMessage }));
   }
 
   async listAllPersonas(): Promise<Persona[]> {
     return db.select().from(personas).orderBy(desc(personas.createdAt));
+  }
+
+  async listAllUsers(): Promise<User[]> {
+    return db.select().from(users).orderBy(desc(users.createdAt));
+  }
+
+  async getPersonaStats(): Promise<Array<{ personaName: string; difficulty: number | null; totalSessions: number; prayerMoments: number }>> {
+    const rows = await db
+      .select({
+        personaName: personas.name,
+        difficulty: personas.difficulty,
+        totalSessions: count(conversations.id),
+        prayerMoments: sql<number>`count(case when ${conversations.converted} = true then 1 end)::int`,
+      })
+      .from(conversations)
+      .innerJoin(personas, eq(conversations.personaId, personas.id))
+      .groupBy(personas.name, personas.difficulty)
+      .orderBy(personas.difficulty);
+    return rows;
   }
 }
 

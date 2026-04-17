@@ -1,40 +1,76 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigation, MobileHeader, MobileNav } from "@/components/Navigation";
-import { useUserStats } from "@/hooks/use-conversations";
-import { Loader2, BarChart2, MessageCircle, Users, TrendingUp, Heart } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Loader2, MessageCircle, Heart, RefreshCw, BarChart2 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { Link } from "wouter";
+import { useAuth } from "@/hooks/use-auth";
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
-function StatCard({ label, value, icon: Icon, color }: {
-  label: string;
-  value: string | number;
-  icon: React.ElementType;
-  color: string;
-}) {
-  return (
-    <div className="bg-card rounded-2xl border border-border p-5 flex items-center gap-4 shadow-sm">
-      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${color}`}>
-        <Icon className="w-6 h-6" />
-      </div>
-      <div>
-        <p className="text-2xl font-bold text-foreground">{value}</p>
-        <p className="text-sm text-muted-foreground">{label}</p>
-      </div>
-    </div>
-  );
+function useMyProgress() {
+  return useQuery({
+    queryKey: ["/api/user/stats"],
+    queryFn: async () => {
+      const res = await fetch("/api/user/stats", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch stats");
+      return res.json() as Promise<{
+        totalConversations: number;
+        conversionsAchieved: number;
+      }>;
+    },
+  });
 }
 
-function ScoreBar({ score }: { score: number }) {
-  const color = score >= 80 ? "bg-green-500" : score >= 60 ? "bg-blue-500" : score >= 40 ? "bg-amber-500" : "bg-red-400";
-  return (
-    <div className="flex items-center gap-3 w-full">
-      <div className="flex-1 bg-muted rounded-full h-2 overflow-hidden">
-        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${score}%` }} />
-      </div>
-      <span className="text-sm font-semibold w-10 text-right text-foreground">{score}</span>
-    </div>
-  );
+function useMyActivity() {
+  return useQuery({
+    queryKey: ["/api/user/activity"],
+    queryFn: async () => {
+      const res = await fetch("/api/user/activity", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch activity");
+      return res.json() as Promise<Array<{ type: "started" | "prayer"; personaName: string; timestamp: string }>>;
+    },
+  });
 }
 
 export default function MyStats() {
-  const { data: stats, isLoading } = useUserStats();
+  const { data: stats, isLoading: statsLoading } = useMyProgress();
+  const { data: activity, isLoading: activityLoading } = useMyActivity();
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [feedbackText, setFeedbackText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  const isAdmin = !!(process.env.ADMIN_USER_ID) || false;
+
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/user/activity"] });
+  };
+
+  const handleSubmitFeedback = async () => {
+    if (!feedbackText.trim()) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/testimonials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ content: feedbackText.trim() }),
+      });
+      if (res.ok) {
+        setSubmitted(true);
+        setFeedbackText("");
+        toast({ title: "Feedback submitted", description: "Thank you for sharing!" });
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const isLoading = statsLoading || activityLoading;
 
   if (isLoading) {
     return (
@@ -50,64 +86,109 @@ export default function MyStats() {
       <MobileHeader />
 
       <main className="md:pl-64">
-        <div className="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8 animate-in space-y-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-              <BarChart2 className="w-6 h-6 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-display font-bold">My Stats</h1>
-              <p className="text-sm text-muted-foreground">Your practice progress at a glance</p>
+        <div className="max-w-2xl mx-auto p-4 sm:p-6 lg:p-8 animate-in space-y-4">
+
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-display font-bold">My Progress</h1>
+            <div className="flex items-center gap-2">
+              <Link href="/admin">
+                <Button variant="outline" size="sm" className="gap-2">
+                  <BarChart2 className="w-4 h-4" />
+                  Global Stats
+                </Button>
+              </Link>
+              <Button variant="outline" size="sm" onClick={handleRefresh}>
+                <RefreshCw className="w-4 h-4" />
+              </Button>
             </div>
           </div>
 
-          {/* Stat tiles */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard label="Total Sessions" value={stats?.totalConversations ?? 0} icon={MessageCircle} color="bg-blue-100 text-blue-600" />
-            <StatCard label="Personas Practiced" value={stats?.personasPracticed ?? 0} icon={Users} color="bg-purple-100 text-purple-600" />
-            <StatCard label="Pass Rate" value={`${stats?.passRate ?? 0}%`} icon={TrendingUp} color="bg-green-100 text-green-600" />
-            <StatCard label="Conversions" value={stats?.conversionsAchieved ?? 0} icon={Heart} color="bg-rose-100 text-rose-600" />
+          {/* My Conversations */}
+          <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">My Conversations</p>
+                <p className="text-4xl font-bold text-foreground mt-1">{stats?.totalConversations ?? 0}</p>
+                <p className="text-xs text-muted-foreground mt-1">Practice sessions you've started</p>
+              </div>
+              <MessageCircle className="w-8 h-8 text-muted-foreground/30" />
+            </div>
           </div>
 
-          {/* Best scores per persona */}
+          {/* Prayer Moments */}
+          <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Prayer Moments</p>
+                <p className="text-4xl font-bold text-teal-600 mt-1">{stats?.conversionsAchieved ?? 0}</p>
+                <p className="text-xs text-muted-foreground mt-1">Times someone agreed to pray</p>
+              </div>
+              <Heart className="w-8 h-8 text-rose-300" />
+            </div>
+          </div>
+
+          {/* Recent Activity */}
           <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
             <div className="p-5 border-b border-border">
-              <h2 className="font-semibold text-foreground">Best Scores by Persona</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">Score 60+ to pass a persona</p>
+              <h2 className="font-semibold">Your Recent Activity</h2>
             </div>
-
-            {!stats?.bestScores?.length ? (
-              <div className="p-8 text-center text-muted-foreground text-sm">
-                No sessions with feedback yet. Complete a conversation and click "End & Get Feedback" to see your scores here.
+            {!activity?.length ? (
+              <div className="p-6 text-center text-muted-foreground text-sm">
+                No activity yet. Start a practice session!
               </div>
             ) : (
               <div className="divide-y divide-border">
-                {stats.bestScores
-                  .sort((a, b) => b.bestScore - a.bestScore)
-                  .map((row) => (
-                    <div key={row.personaId} className="p-4 flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold shrink-0">
-                        {row.personaName[0]}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-sm text-foreground truncate">{row.personaName}</span>
-                          {row.passed && (
-                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700 shrink-0">
-                              ✓ Passed
-                            </span>
-                          )}
-                        </div>
-                        <ScoreBar score={row.bestScore} />
-                      </div>
-                      <div className="text-xs text-muted-foreground shrink-0">
-                        {row.attempts} {row.attempts === 1 ? "try" : "tries"}
-                      </div>
+                {activity.map((item, i) => (
+                  <div key={i} className="p-4 flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${item.type === "prayer" ? "bg-rose-100 text-rose-500" : "bg-primary/10 text-primary"}`}>
+                      {item.type === "prayer" ? <Heart className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}
                     </div>
-                  ))}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground">
+                        {item.type === "prayer" ? "Prayer Moment" : "Conversation Started"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">with {item.personaName}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground shrink-0">
+                      {formatDistanceToNow(new Date(item.timestamp), { addSuffix: true })}
+                    </p>
+                  </div>
+                ))}
               </div>
             )}
           </div>
+
+          {/* Submit Feedback */}
+          <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-border">
+              <h2 className="font-semibold">Share Your Experience</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Your feedback helps improve GraceTalk</p>
+            </div>
+            <div className="p-4 space-y-3">
+              {submitted ? (
+                <p className="text-sm text-green-600 text-center py-2">Thank you for your feedback!</p>
+              ) : (
+                <>
+                  <textarea
+                    className="w-full rounded-xl border border-border bg-muted/30 p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[80px]"
+                    placeholder="Tell us about your experience with GraceTalk..."
+                    value={feedbackText}
+                    onChange={(e) => setFeedbackText(e.target.value)}
+                  />
+                  <Button
+                    className="w-full"
+                    onClick={handleSubmitFeedback}
+                    disabled={!feedbackText.trim() || submitting}
+                  >
+                    {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                    Submit Feedback
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+
         </div>
       </main>
       <MobileNav />

@@ -451,6 +451,37 @@ No preamble, no explanation, just the suggestion.`;
     res.json({ totalConversations, personasPracticed, passRate, conversionsAchieved, bestScores });
   });
 
+  // --- User Activity Feed ---
+  app.get("/api/user/activity", requireAuth, async (req, res) => {
+    const userId = (req.user as any).id;
+    const activity = await storage.getUserActivity(userId, 20);
+    res.json(activity);
+  });
+
+  // --- User Testimonials ---
+  app.post("/api/testimonials", requireAuth, async (req, res) => {
+    const userId = (req.user as any).id;
+    const user = req.user as any;
+    const { content } = req.body;
+    if (!content?.trim()) return res.status(400).json({ message: "content required" });
+    const displayName = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email?.split("@")[0] || "Anonymous";
+    const testimonial = await storage.createTestimonial(userId, displayName, user.email ?? null, content.trim());
+    res.status(201).json(testimonial);
+  });
+
+  // --- Voice Transcript Fallback ---
+  app.post("/api/conversations/:id/voice-transcript", requireAuth, async (req, res) => {
+    const conversationId = Number(req.params.id);
+    const conversation = await storage.getConversation(conversationId);
+    if (!conversation || conversation.userId !== (req.user as any).id) {
+      return res.status(404).json({ message: "Not found" });
+    }
+    const { segments } = req.body as { segments: Array<{ role: string; text: string }> };
+    if (!Array.isArray(segments)) return res.status(400).json({ message: "segments array required" });
+    await storage.saveVoiceTranscriptFallback(conversationId, segments);
+    res.status(204).send();
+  });
+
   // --- Admin ---
   const requireAdmin = (req: any, res: any, next: any) => {
     const adminId = process.env.ADMIN_USER_ID;
@@ -461,12 +492,25 @@ No preamble, no explanation, just the suggestion.`;
   };
 
   app.get("/api/admin/stats", requireAdmin, async (_req, res) => {
-    const [totalUsers, totalConversations, recentConversations] = await Promise.all([
+    const [totalUsers, totalConversations, prayerMoments, recentConversations, personaStats] = await Promise.all([
       storage.countAllUsers(),
       storage.countAllConversations(),
+      storage.countConvertedConversations(),
       storage.getRecentConversations(20),
+      storage.getPersonaStats(),
     ]);
-    res.json({ totalUsers, totalConversations, recentConversations });
+    res.json({ totalUsers, totalConversations, prayerMoments, recentConversations, personaStats });
+  });
+
+  app.get("/api/admin/users", requireAdmin, async (_req, res) => {
+    const allUsers = await storage.listAllUsers();
+    res.json(allUsers.map(u => ({
+      id: u.id,
+      email: u.email,
+      firstName: u.firstName,
+      lastName: u.lastName,
+      createdAt: u.createdAt,
+    })));
   });
 
   app.get("/api/admin/personas", requireAdmin, async (_req, res) => {
@@ -474,9 +518,41 @@ No preamble, no explanation, just the suggestion.`;
     res.json(all);
   });
 
+  app.post("/api/admin/personas", requireAdmin, async (req, res) => {
+    const adminId = process.env.ADMIN_USER_ID!;
+    const { name, description, difficulty, voice, gender } = req.body;
+    if (!name || !description) return res.status(400).json({ message: "name and description required" });
+    const persona = await storage.createPersona({
+      name,
+      description,
+      difficulty: Number(difficulty) || 3,
+      voice: voice || "Aria",
+      gender: gender || "female",
+      userId: adminId,
+    });
+    res.status(201).json(persona);
+  });
+
+  app.put("/api/admin/personas/:id", requireAdmin, async (req, res) => {
+    const { name, description, difficulty, voice, gender } = req.body;
+    const updated = await storage.updatePersonaFull(Number(req.params.id), {
+      ...(name && { name }),
+      ...(description && { description }),
+      ...(difficulty && { difficulty: Number(difficulty) }),
+      ...(voice && { voice }),
+      ...(gender && { gender }),
+    });
+    res.json(updated);
+  });
+
   app.delete("/api/admin/personas/:id", requireAdmin, async (req, res) => {
     await storage.deletePersona(Number(req.params.id));
     res.status(204).send();
+  });
+
+  app.get("/api/admin/testimonials", requireAdmin, async (_req, res) => {
+    const testimonials = await storage.listTestimonials();
+    res.json(testimonials);
   });
 
   // --- Demo (no auth required) ---

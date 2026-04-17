@@ -134,8 +134,10 @@ export default function ChatSession() {
         </div>
         <LiveKitVoiceCall
           conversationId={conversationId}
+          personaName={persona?.name}
           onTranscriptsUpdated={refetch}
           onCallEnded={handleVoiceCallEnd}
+          onSwitchToType={() => refetch()}
         />
         <Button
           variant="ghost"
