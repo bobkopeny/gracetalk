@@ -28,10 +28,7 @@ export default function History() {
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Show only the most recent conversation per persona */}
-              {conversations?.filter((conv, idx, arr) =>
-                arr.findIndex(c => c.personaId === conv.personaId) === idx
-              ).map((conv) => {
+              {conversations?.map((conv) => {
                 const hasMessages = conv.messageCount > 0;
                 const preview = conv.lastMessage
                   ? conv.lastMessage.length > 120
