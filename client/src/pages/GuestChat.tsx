@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from "react";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Send, ArrowLeft, Shield, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LiveKitVoiceCall } from "@/components/LiveKitVoiceCall";
+import { useAuth } from "@/hooks/use-auth";
 
 const DEMO_PERSONAS = [
   { id: "open-heart", name: "The Open Heart" },
@@ -21,7 +22,14 @@ interface Message {
 
 export default function GuestChat() {
   const { personaId } = useParams();
+  const [, setLocation] = useLocation();
+  const { user } = useAuth();
   const persona = DEMO_PERSONAS.find((p) => p.id === personaId);
+
+  // Redirect logged-in users to the real dashboard so sessions are recorded
+  useEffect(() => {
+    if (user) setLocation("/dashboard");
+  }, [user, setLocation]);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
