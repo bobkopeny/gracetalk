@@ -202,12 +202,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createFeedback(conversationId: number, content: string): Promise<Feedback> {
+    await db.delete(feedbacks).where(eq(feedbacks.conversationId, conversationId));
     const [feedback] = await db.insert(feedbacks).values({ conversationId, content }).returning();
     return feedback;
   }
 
   async getFeedback(conversationId: number): Promise<Feedback | undefined> {
-    const [feedback] = await db.select().from(feedbacks).where(eq(feedbacks.conversationId, conversationId));
+    const [feedback] = await db.select().from(feedbacks).where(eq(feedbacks.conversationId, conversationId)).orderBy(desc(feedbacks.createdAt));
     return feedback;
   }
 

@@ -97,16 +97,22 @@ export default function ChatSession() {
     });
   };
 
-  const handleVoiceCallEnd = () => {
-    // Wait for transcripts to save, then auto-generate feedback
-    refetch();
-    setTimeout(() => {
-      generateFeedback.mutate(conversationId, {
-        onSuccess: () => {
-          setLocation(`/feedback/${conversationId}`);
-        },
-      });
-    }, 2000);
+  const handleVoiceCallEnd = async () => {
+    // Poll until message count stabilizes before generating feedback,
+    // so the agent's final callbacks (including the prayer) are all saved.
+    let lastCount = conversation?.messages?.length ?? 0;
+    for (let i = 0; i < 8; i++) {
+      await new Promise((r) => setTimeout(r, 1500));
+      const result = await refetch();
+      const newCount = result.data?.messages?.length ?? 0;
+      if (newCount === lastCount && i >= 2) break; // stable for at least one cycle
+      lastCount = newCount;
+    }
+    generateFeedback.mutate(conversationId, {
+      onSuccess: () => {
+        setLocation(`/feedback/${conversationId}`);
+      },
+    });
   };
 
   if (isLoading || !conversation) {

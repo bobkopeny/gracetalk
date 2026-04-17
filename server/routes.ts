@@ -318,14 +318,16 @@ Scoring rubric (1–10):
 - 7–8: Strong — excellent empathy, good biblical grounding, meaningful dialogue
 - 9–10: Expert — masterful witnessing, addressed every objection, genuine connection
 
-CONVERSION DETECTION — set converted to true if ANY of these occurred:
-- The persona prayed the sinner's prayer or repeated it after the witness
-- The persona said they want to accept Jesus / believe in Christ / give their life to God
-- The persona agreed to pray and the witness led them through a prayer they accepted
-- The persona expressed they prayed with the witness or received Christ
-- The persona showed clear openness to faith and agreed to follow Jesus
+CONVERSION DETECTION — READ THE FULL TRANSCRIPT CAREFULLY before deciding.
+Set "converted": true if ANY of these appear in the Assistant's messages:
+- The sinner's prayer or any version of it ("Lord Jesus, I know that I am a sinner..." or similar)
+- Words like "Amen", "I accept Jesus", "I believe in Christ", "I want to follow Jesus", "I receive Christ"
+- The persona agreeing to pray, accepting an invitation to pray, or praying aloud with the witness
+- Any statement where the persona gives their life to God or receives Christ as Savior
+- IMPORTANT: If you see prayer language or "Amen" anywhere in the Assistant's messages, that IS a conversion. Do NOT set converted to false if the persona prayed.
 
-If converted is true, the score should be at least 8. A successful conversion with excellent witnessing earns a 9 or 10.
+If converted is true, score MUST be at least 8. A conversion with strong witnessing is a 9 or 10.
+If the transcript is empty or very short, set converted to false and score to 1.
 
 Return ONLY valid JSON with exactly these fields (no markdown, no code fences):
 {

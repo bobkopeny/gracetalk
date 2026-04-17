@@ -1,10 +1,10 @@
 import { useParams, Link } from "wouter";
-import { useFeedback, useUserProgress } from "@/hooks/use-conversations";
+import { useFeedback, useUserProgress, useGenerateFeedback } from "@/hooks/use-conversations";
 import { useConversation } from "@/hooks/use-conversations";
 import { usePersona } from "@/hooks/use-personas";
 import { Navigation, MobileHeader, MobileNav } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
-import { Loader2, ArrowLeft, RefreshCw, Lightbulb, BookOpen, Star, Heart, Youtube, Trophy, Lock } from "lucide-react";
+import { Loader2, ArrowLeft, RefreshCw, Lightbulb, BookOpen, Star, Heart, Youtube, Trophy } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { DIFFICULTY_CONFIG } from "@shared/models/persona";
 
@@ -39,10 +39,11 @@ export default function FeedbackPage() {
   const { id } = useParams();
   const conversationId = Number(id);
 
-  const { data: feedback, isLoading: feedbackLoading } = useFeedback(conversationId);
+  const { data: feedback, isLoading: feedbackLoading, refetch } = useFeedback(conversationId);
   const { data: conversation } = useConversation(conversationId);
   const { data: persona } = usePersona(conversation?.personaId || 0);
   const { data: progress } = useUserProgress();
+  const generateFeedback = useGenerateFeedback();
 
   if (feedbackLoading) {
     return (
@@ -86,11 +87,23 @@ export default function FeedbackPage() {
       <main className="md:pl-64">
         <div className="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8 animate-in space-y-6">
 
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard">
-              <Button variant="ghost" size="icon"><ArrowLeft className="w-5 h-5" /></Button>
-            </Link>
-            <h1 className="text-2xl font-display font-bold">Coaching Feedback</h1>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <Link href="/dashboard">
+                <Button variant="ghost" size="icon"><ArrowLeft className="w-5 h-5" /></Button>
+              </Link>
+              <h1 className="text-2xl font-display font-bold">Coaching Feedback</h1>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              disabled={generateFeedback.isPending}
+              onClick={() => generateFeedback.mutate(conversationId, { onSuccess: () => refetch() })}
+            >
+              {generateFeedback.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              Re-analyze
+            </Button>
           </div>
 
           {/* Score + Conversion banner */}
