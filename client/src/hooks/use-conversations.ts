@@ -74,16 +74,18 @@ export function useSendMessage() {
 export function useGenerateFeedback() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (conversationId: number) => {
+    mutationFn: async ({ conversationId, moodIndex }: { conversationId: number; moodIndex?: number }) => {
       const url = buildUrl(api.conversations.feedback.generate.path, { id: conversationId });
       const res = await fetch(url, {
         method: api.conversations.feedback.generate.method,
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
+        body: JSON.stringify({ moodIndex }),
       });
       if (!res.ok) throw new Error("Failed to generate feedback");
       return api.conversations.feedback.generate.responses[201].parse(await res.json());
     },
-    onSuccess: (_, conversationId) => {
+    onSuccess: (_, { conversationId }) => {
       queryClient.invalidateQueries({ queryKey: [api.conversations.feedback.get.path, conversationId] });
       queryClient.invalidateQueries({ queryKey: [api.conversations.list.path] });
     },

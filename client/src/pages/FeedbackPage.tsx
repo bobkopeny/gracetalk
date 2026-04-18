@@ -100,7 +100,7 @@ export default function FeedbackPage() {
               size="sm"
               className="gap-2"
               disabled={generateFeedback.isPending}
-              onClick={() => generateFeedback.mutate(conversationId, { onSuccess: () => refetch() })}
+              onClick={() => generateFeedback.mutate({ conversationId }, { onSuccess: () => refetch() })}
             >
               {generateFeedback.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
               Re-analyze

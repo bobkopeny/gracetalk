@@ -290,6 +290,7 @@ interface LiveKitVoiceCallProps {
   onSwitchToType?: () => void;
   startCallRef?: React.MutableRefObject<(() => void) | null>;
   onConnectingChange?: (connecting: boolean) => void;
+  onMoodIndex?: (index: number) => void;
 }
 
 export function LiveKitVoiceCall({
@@ -302,6 +303,7 @@ export function LiveKitVoiceCall({
   onSwitchToType,
   startCallRef,
   onConnectingChange,
+  onMoodIndex,
 }: LiveKitVoiceCallProps) {
   const [token, setToken] = useState<string | null>(null);
   const [serverUrl, setServerUrl] = useState<string | null>(null);
@@ -354,6 +356,7 @@ export function LiveKitVoiceCall({
       const data = await res.json();
       setToken(data.token);
       setServerUrl(data.url);
+      if (typeof data.moodIndex === "number") onMoodIndex?.(data.moodIndex);
       setIsActive(true);
       onActiveChange?.(true);
     } catch (e: any) {

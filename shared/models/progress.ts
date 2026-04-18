@@ -10,6 +10,7 @@ export const userProgress = pgTable("user_progress", {
   bestScore: integer("best_score").notNull().default(0),
   passed: boolean("passed").notNull().default(false),
   attempts: integer("attempts").notNull().default(0),
+  lastMoodIndex: integer("last_mood_index"),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 

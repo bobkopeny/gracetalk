@@ -65,16 +65,18 @@ const SESSION_MOODS: Record<number, string[]> = {
   ],
 };
 
-function getSessionMood(difficulty: number, attempt: number = 0): string {
+function getSessionMood(difficulty: number, lastMoodIndex?: number | null): { mood: string; index: number } {
   const options = SESSION_MOODS[difficulty] ?? SESSION_MOODS[3];
-  // Stride of 3 is coprime to 5 — cycles all options in non-sequential order (0→3→1→4→2→0)
-  return options[(attempt * 3) % options.length];
+  const available = options.map((_, i) => i).filter(i => i !== lastMoodIndex);
+  const index = available[Math.floor(Math.random() * available.length)];
+  return { mood: options[index], index };
 }
 
-function varyThreshold(base: number, attempt: number = 0): number {
-  // Stride of 2 through 3 values gives non-sequential cycle: 0→2→1→0→2→1 → deltas -1,+1,0,-1,+1,0
-  const deltas = [-1, 1, 0];
-  return Math.max(2, Math.min(8, base + deltas[(attempt * 2) % deltas.length]));
+function varyThreshold(base: number, lastMoodIndex?: number | null): number {
+  const deltas = [-1, 0, 1];
+  const available = deltas.filter((_, i) => i !== (lastMoodIndex !== null && lastMoodIndex !== undefined ? lastMoodIndex % 3 : -1));
+  const delta = available[Math.floor(Math.random() * available.length)];
+  return Math.max(2, Math.min(8, base + delta));
 }
 
 function extractJSON(raw: string): string {
@@ -447,10 +449,11 @@ Keep the tone warm, constructive, and encouraging. Be specific to this persona's
       await storage.markConversationConverted(conversationId);
     }
 
-    // Update user progress with the score
+    // Update user progress with the score and mood used this session
     if (parsed.score != null) {
       const userId = (req.user as any).id;
-      await storage.upsertUserProgress(userId, conversation.personaId, parsed.score);
+      const moodIndex = typeof req.body.moodIndex === "number" ? req.body.moodIndex : undefined;
+      await storage.upsertUserProgress(userId, conversation.personaId, parsed.score, moodIndex);
     }
 
     res.status(201).json({ ...feedback, ...parsed });
@@ -809,14 +812,16 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
 
     const personaDifficulty = (persona.difficulty ?? 3) as 1 | 2 | 3 | 4 | 5;
     const baseThreshold = DIFFICULTY_CONFIG[personaDifficulty]?.threshold ?? 4;
-    const conversionThreshold = varyThreshold(baseThreshold, personaAttempts);
-    const sessionMood = getSessionMood(personaDifficulty, personaAttempts);
+    const lastMoodIndex = allProgress.find(p => p.personaId === persona.id)?.lastMoodIndex;
+    const { mood: sessionMood, index: moodIndex } = getSessionMood(personaDifficulty, lastMoodIndex);
+    const conversionThreshold = varyThreshold(baseThreshold, lastMoodIndex);
 
     const roomMetadata = JSON.stringify({
       personaName: persona.name,
       characterName: getCharacterName(persona.name, persona.gender),
       personaDescription: persona.description,
       sessionMood,
+      moodIndex,
       personaVoice: persona.voice || genderToVoice(persona.gender ?? "female"),
       conversionThreshold,
       conversationId: conversation.id,
@@ -845,7 +850,7 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
 
     const token = await at.toJwt();
 
-    res.json({ token, url: livekitUrl, roomName });
+    res.json({ token, url: livekitUrl, roomName, moodIndex });
   });
 
   return httpServer;

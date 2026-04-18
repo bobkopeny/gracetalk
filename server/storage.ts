@@ -31,7 +31,7 @@ export interface IStorage {
   getFeedback(conversationId: number): Promise<Feedback | undefined>;
 
   // Progress
-  upsertUserProgress(userId: string, personaId: number, score: number): Promise<void>;
+  upsertUserProgress(userId: string, personaId: number, score: number, lastMoodIndex?: number): Promise<void>;
   getUserProgress(userId: string): Promise<UserProgress[]>;
 
   // Cross-conversation memory
@@ -219,16 +219,17 @@ export class DatabaseStorage implements IStorage {
     return feedback;
   }
 
-  async upsertUserProgress(userId: string, personaId: number, score: number): Promise<void> {
+  async upsertUserProgress(userId: string, personaId: number, score: number, lastMoodIndex?: number): Promise<void> {
     await db
       .insert(userProgress)
-      .values({ userId, personaId, bestScore: score, passed: score >= 7, attempts: 1 })
+      .values({ userId, personaId, bestScore: score, passed: score >= 7, attempts: 1, lastMoodIndex: lastMoodIndex ?? null })
       .onConflictDoUpdate({
         target: [userProgress.userId, userProgress.personaId],
         set: {
           bestScore: sql`GREATEST(user_progress.best_score, ${score})`,
           passed: sql`user_progress.passed OR ${score >= 7}`,
           attempts: sql`user_progress.attempts + 1`,
+          lastMoodIndex: lastMoodIndex ?? null,
           updatedAt: new Date(),
         },
       });

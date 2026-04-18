@@ -19,6 +19,7 @@ export default function ChatSession() {
   const startCallRef = useRef<(() => void) | null>(null);
   const [callActive, setCallActive] = useState(false);
   const [callConnecting, setCallConnecting] = useState(false);
+  const moodIndexRef = useRef<number | undefined>(undefined);
 
   const handleActiveChange = (active: boolean) => {
     setCallActive(active);
@@ -40,13 +41,13 @@ export default function ChatSession() {
       if (newCount === lastCount && i >= 2) break;
       lastCount = newCount;
     }
-    generateFeedback.mutate(conversationId, {
+    generateFeedback.mutate({ conversationId, moodIndex: moodIndexRef.current }, {
       onSuccess: () => setLocation(`/feedback/${conversationId}`),
     });
   };
 
   const handleEndManual = () => {
-    generateFeedback.mutate(conversationId, {
+    generateFeedback.mutate({ conversationId, moodIndex: moodIndexRef.current }, {
       onSuccess: () => setLocation(`/feedback/${conversationId}`),
     });
   };
@@ -156,6 +157,7 @@ export default function ChatSession() {
         onTranscriptsUpdated={refetch}
         onCallEnded={handleVoiceCallEnd}
         onSwitchToType={() => refetch()}
+        onMoodIndex={(i) => { moodIndexRef.current = i; }}
       />
     </div>
   );
