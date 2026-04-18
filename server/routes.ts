@@ -398,6 +398,11 @@ Set "converted": true if ANY of these appear in the Assistant's messages:
 If converted is true, score MUST be at least 8. A conversion with strong witnessing is a 9 or 10.
 If the transcript is empty or very short, set converted to false and score to 1.
 
+SPECIAL KUDOS — look for these relational gestures in the User's messages:
+- Inviting the persona to church ("would you like to come to church", "join me this Sunday", etc.)
+- Offering or giving the persona a Bible ("I'd love to give you a Bible", "can I bring you a Bible", etc.)
+These are warm, relationship-building acts that go beyond words. If you detect one, set the corresponding kudos flag and add a warm, specific sentence in generalFeedback praising it.
+
 Return ONLY valid JSON with exactly these fields (no markdown, no code fences):
 {
   "generalFeedback": "2-3 sentence overall analysis",
@@ -407,6 +412,7 @@ Return ONLY valid JSON with exactly these fields (no markdown, no code fences):
   "score": <integer 1-10>,
   "scoreBreakdown": "1-2 sentence explanation of the score",
   "converted": <true or false>,
+  "kudos": { "invitedToChurch": <true or false>, "offeredBible": <true or false> },
   "youtubeSearches": { "<short 3-6 word label>": "<YouTube search query>", ... }
 }
 For youtubeSearches, include one entry per improvement point — a short label (3-6 words) mapped to a specific YouTube search query (e.g. "Responding to problem of evil", "Sharing faith with atheists apologetics"). Omit if there are no improvements.

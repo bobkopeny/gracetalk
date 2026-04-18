@@ -67,6 +67,7 @@ export default function FeedbackPage() {
   const converted: boolean = (feedback as any).converted ?? false;
   const scoreBreakdown: string = (feedback as any).scoreBreakdown ?? "";
   const youtubeSearches: Record<string, string> = (feedback as any).youtubeSearches ?? {};
+  const kudos: { invitedToChurch?: boolean; offeredBible?: boolean } = (feedback as any).kudos ?? {};
   const ytEntries = Object.entries(youtubeSearches);
 
   // Level unlock logic
@@ -138,6 +139,30 @@ export default function FeedbackPage() {
               </div>
             )}
           </div>
+
+          {/* Kudos badges */}
+          {(kudos.invitedToChurch || kudos.offeredBible) && (
+            <div className="flex flex-wrap gap-3">
+              {kudos.invitedToChurch && (
+                <div className="flex items-center gap-2 bg-teal-50 border border-teal-200 rounded-full px-4 py-2 shadow-sm">
+                  <span className="text-lg">⛪</span>
+                  <div>
+                    <p className="text-sm font-bold text-teal-700">Church Invitation</p>
+                    <p className="text-xs text-teal-600">You invited them to church — a powerful act of relationship!</p>
+                  </div>
+                </div>
+              )}
+              {kudos.offeredBible && (
+                <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-full px-4 py-2 shadow-sm">
+                  <span className="text-lg">📖</span>
+                  <div>
+                    <p className="text-sm font-bold text-amber-700">Bible Offered</p>
+                    <p className="text-xs text-amber-600">You offered them a Bible — a tangible gift of love!</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Level Unlock Banner */}
           {showLevelUnlock && (
