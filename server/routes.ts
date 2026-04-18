@@ -15,6 +15,18 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
+const CHARACTER_NAMES: Record<string, string> = {
+  "The Open Heart": "Sarah",
+  "The Spiritual Agnostic": "Jessica",
+  "The Professional": "David",
+  "Hurt by the Church": "Rachel",
+  "The Skeptical Atheist": "Marcus",
+};
+
+function getCharacterName(personaName: string, gender?: string | null): string {
+  return CHARACTER_NAMES[personaName] ?? (gender === "male" ? "Alex" : "Jordan");
+}
+
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   // Set up auth
   await setupAuth(app);
@@ -598,7 +610,8 @@ No preamble, no explanation, just the suggestion.`;
       return res.status(404).json({ message: "Persona not found" });
     }
 
-    const systemPrompt = `You are playing the role of ${persona.name}.
+    const charName = getCharacterName(persona.name);
+    const systemPrompt = `You are playing the role of ${persona.name}. Your name is ${charName} — always introduce yourself as ${charName}, never as your role label.
 Your description: ${persona.description}.
 Your goal is to have a natural conversation with a Christian who is witnessing to you.
 React according to your persona's beliefs and background. Do not break character.
@@ -644,6 +657,7 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
 
     const roomMetadata = JSON.stringify({
       personaName: persona.name,
+      characterName: getCharacterName(persona.name),
       personaDescription: persona.description,
       personaVoice: "Eve",
       conversationId: null,
@@ -733,6 +747,7 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
 
     const roomMetadata = JSON.stringify({
       personaName: persona.name,
+      characterName: getCharacterName(persona.name, persona.gender),
       personaDescription: persona.description,
       personaVoice: persona.voice || genderToVoice(persona.gender ?? "female"),
       conversionThreshold,

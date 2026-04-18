@@ -33,7 +33,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("gracetalk-agent")
 
-SYSTEM_PROMPT_TEMPLATE = """You are playing the role of {persona_name}.
+SYSTEM_PROMPT_TEMPLATE = """You are playing the role of {persona_name}. Your name is {character_name} — always introduce yourself as {character_name} and refer to yourself by that name. Never introduce yourself using your role label.
 Your description: {persona_description}.
 
 Your goal is to have a natural conversation with a Christian who is witnessing to you.
@@ -90,6 +90,7 @@ class WitnessPersona(Agent):
     def __init__(
         self,
         persona_name: str,
+        character_name: str,
         persona_description: str,
         conversation_id: int | None,
         conversion_threshold: int = 4,
@@ -98,6 +99,7 @@ class WitnessPersona(Agent):
         kwargs = dict(
             instructions=SYSTEM_PROMPT_TEMPLATE.format(
                 persona_name=persona_name,
+                character_name=character_name,
                 persona_description=persona_description,
                 conversion_threshold=conversion_threshold,
             )
@@ -166,6 +168,7 @@ async def entrypoint(ctx: JobContext) -> None:
         logger.warning("No metadata found in room or participants; using defaults.")
 
     persona_name: str = metadata.get("personaName", "Alex")
+    character_name: str = metadata.get("characterName", persona_name)
     persona_description: str = metadata.get(
         "personaDescription",
         "A skeptical but open-minded person willing to have a respectful conversation.",
@@ -205,6 +208,7 @@ async def entrypoint(ctx: JobContext) -> None:
         room=ctx.room,
         agent=WitnessPersona(
             persona_name,
+            character_name,
             persona_description,
             conversation_id,
             conversion_threshold=conversion_threshold,
