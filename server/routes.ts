@@ -27,6 +27,54 @@ function getCharacterName(personaName: string, gender?: string | null): string {
   return CHARACTER_NAMES[personaName] ?? (gender === "male" ? "Alex" : "Jordan");
 }
 
+const SESSION_MOODS: Record<number, string[]> = {
+  1: [
+    "Today you're particularly open and seeking — you've been thinking about life's big questions more than usual.",
+    "You're in your usual curious, searching state of mind.",
+    "You're a bit distracted and less focused than usual, though still open to connection.",
+    "Something happened recently that has you feeling more hopeful and receptive than normal.",
+    "You're feeling a little guarded today — you've had some disappointments lately and aren't sure you want to go deep.",
+  ],
+  2: [
+    "You recently had a meaningful personal spiritual experience and are feeling confident in your path.",
+    "You're in your usual place — spiritual but firmly not religious.",
+    "You're a bit more open today — you've been quietly wondering whether your current spirituality is really enough.",
+    "You feel more spiritually settled than usual and are less interested in exclusive religious claims.",
+    "You attended a yoga retreat last weekend and are feeling particularly grounded in your own spiritual framework.",
+  ],
+  3: [
+    "Work has been especially demanding lately and you have even less mental space for spiritual topics than normal.",
+    "You're in your usual busy-but-functional state — faith just isn't something you spend time on.",
+    "You just had a rare quiet weekend and are slightly more reflective than normal.",
+    "A close friend recently went through a health scare and you've been privately thinking more about meaning.",
+    "You're running behind on a deadline and are particularly short on patience for anything that feels irrelevant.",
+  ],
+  4: [
+    "Something this week triggered an old memory from church and the wounds feel particularly fresh today.",
+    "You're in your usual guarded-but-surviving mode.",
+    "You've been doing some inner work lately and are marginally more open to processing the past.",
+    "You saw another church scandal in the news and are feeling especially cynical about religion.",
+    "You've had a decent week and are slightly less on edge than usual — but still very guarded.",
+  ],
+  5: [
+    "You've just finished reading a new book on atheism and feel intellectually sharp and confident today.",
+    "You're in your usual rational, evidence-based mindset.",
+    "You recently heard an interesting argument you hadn't considered before and are quietly curious — though you won't show it easily.",
+    "You're feeling particularly uninterested in this topic today — you've had this conversation too many times and it rarely goes anywhere.",
+    "You just listened to a debate podcast and are feeling especially well-armed with counter-arguments.",
+  ],
+};
+
+function getSessionMood(difficulty: number): string {
+  const options = SESSION_MOODS[difficulty] ?? SESSION_MOODS[3];
+  return options[Math.floor(Math.random() * options.length)];
+}
+
+function varyThreshold(base: number): number {
+  const delta = Math.floor(Math.random() * 3) - 1; // -1, 0, or +1
+  return Math.max(2, Math.min(8, base + delta));
+}
+
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   // Set up auth
   await setupAuth(app);
@@ -659,6 +707,7 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
       personaName: persona.name,
       characterName: getCharacterName(persona.name),
       personaDescription: persona.description,
+      sessionMood: getSessionMood(3),
       personaVoice: "Eve",
       conversationId: null,
       messages: [],
@@ -743,12 +792,15 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
     ];
 
     const personaDifficulty = (persona.difficulty ?? 3) as 1 | 2 | 3 | 4 | 5;
-    const conversionThreshold = DIFFICULTY_CONFIG[personaDifficulty]?.threshold ?? 4;
+    const baseThreshold = DIFFICULTY_CONFIG[personaDifficulty]?.threshold ?? 4;
+    const conversionThreshold = varyThreshold(baseThreshold);
+    const sessionMood = getSessionMood(personaDifficulty);
 
     const roomMetadata = JSON.stringify({
       personaName: persona.name,
       characterName: getCharacterName(persona.name, persona.gender),
       personaDescription: persona.description,
+      sessionMood,
       personaVoice: persona.voice || genderToVoice(persona.gender ?? "female"),
       conversionThreshold,
       conversationId: conversation.id,

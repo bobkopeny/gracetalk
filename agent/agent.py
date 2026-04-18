@@ -36,6 +36,9 @@ logger = logging.getLogger("gracetalk-agent")
 SYSTEM_PROMPT_TEMPLATE = """You are playing the role of {persona_name}. Your name is {character_name} — always introduce yourself as {character_name} and refer to yourself by that name. Never introduce yourself using your role label.
 Your description: {persona_description}.
 
+Today's disposition: {session_mood}
+Let this subtly shape your tone and openness for this conversation — but do not announce it or explain it. Just embody it naturally.
+
 Your goal is to have a natural conversation with a Christian who is witnessing to you.
 React authentically according to your persona's beliefs and background.
 Do not break character.
@@ -101,6 +104,7 @@ class WitnessPersona(Agent):
                 persona_name=persona_name,
                 character_name=character_name,
                 persona_description=persona_description,
+                session_mood=session_mood,
                 conversion_threshold=conversion_threshold,
             )
         )
@@ -173,16 +177,18 @@ async def entrypoint(ctx: JobContext) -> None:
         "personaDescription",
         "A skeptical but open-minded person willing to have a respectful conversation.",
     )
+    session_mood: str = metadata.get("sessionMood", "You're in your usual state of mind.")
     conversation_id: int | None = metadata.get("conversationId")
     persona_voice: str = metadata.get("personaVoice", os.environ.get("XAI_VOICE", "Ara"))
     conversion_threshold: int = metadata.get("conversionThreshold", 4)
     prior_messages: list[dict] = metadata.get("messages", [])
 
     logger.info(
-        "Starting session | persona=%s | conversation=%s | threshold=%d | prior_messages=%d",
+        "Starting session | persona=%s | conversation=%s | threshold=%d | mood=%s | prior_messages=%d",
         persona_name,
         conversation_id,
         conversion_threshold,
+        session_mood[:60],
         len(prior_messages),
     )
 
