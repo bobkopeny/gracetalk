@@ -65,13 +65,13 @@ const SESSION_MOODS: Record<number, string[]> = {
   ],
 };
 
-function getSessionMood(difficulty: number): string {
+function getSessionMood(difficulty: number, attempt: number = 0): string {
   const options = SESSION_MOODS[difficulty] ?? SESSION_MOODS[3];
-  return options[Math.floor(Math.random() * options.length)];
+  return options[attempt % options.length];
 }
 
-function varyThreshold(base: number): number {
-  const delta = Math.floor(Math.random() * 3) - 1; // -1, 0, or +1
+function varyThreshold(base: number, attempt: number = 0): number {
+  const delta = (attempt % 3) - 1; // cycles -1, 0, +1 across sessions
   return Math.max(2, Math.min(8, base + delta));
 }
 
@@ -784,10 +784,12 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
 
     // Pass current conversation messages + past conversation memory to the agent
     const voiceUserId = (req.user as any).id;
-    const [recentMessages, pastVoiceMessages] = await Promise.all([
+    const [recentMessages, pastVoiceMessages, allProgress] = await Promise.all([
       storage.getMessages(Number(conversationId)),
       storage.getPreviousMessages(voiceUserId, persona.id, Number(conversationId), 40),
+      storage.getUserProgress(voiceUserId),
     ]);
+    const personaAttempts = allProgress.find(p => p.personaId === persona.id)?.attempts ?? 0;
 
     // Prepend past messages with a system separator so the agent understands the context boundary
     const pastHistory = pastVoiceMessages.length > 0
@@ -805,8 +807,8 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
 
     const personaDifficulty = (persona.difficulty ?? 3) as 1 | 2 | 3 | 4 | 5;
     const baseThreshold = DIFFICULTY_CONFIG[personaDifficulty]?.threshold ?? 4;
-    const conversionThreshold = varyThreshold(baseThreshold);
-    const sessionMood = getSessionMood(personaDifficulty);
+    const conversionThreshold = varyThreshold(baseThreshold, personaAttempts);
+    const sessionMood = getSessionMood(personaDifficulty, personaAttempts);
 
     const roomMetadata = JSON.stringify({
       personaName: persona.name,
