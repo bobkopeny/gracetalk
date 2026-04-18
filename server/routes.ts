@@ -67,12 +67,14 @@ const SESSION_MOODS: Record<number, string[]> = {
 
 function getSessionMood(difficulty: number, attempt: number = 0): string {
   const options = SESSION_MOODS[difficulty] ?? SESSION_MOODS[3];
-  return options[attempt % options.length];
+  // Stride of 3 is coprime to 5 — cycles all options in non-sequential order (0→3→1→4→2→0)
+  return options[(attempt * 3) % options.length];
 }
 
 function varyThreshold(base: number, attempt: number = 0): number {
-  const delta = (attempt % 3) - 1; // cycles -1, 0, +1 across sessions
-  return Math.max(2, Math.min(8, base + delta));
+  // Stride of 2 through 3 values gives non-sequential cycle: 0→2→1→0→2→1 → deltas -1,+1,0,-1,+1,0
+  const deltas = [-1, 1, 0];
+  return Math.max(2, Math.min(8, base + deltas[(attempt * 2) % deltas.length]));
 }
 
 function extractJSON(raw: string): string {
