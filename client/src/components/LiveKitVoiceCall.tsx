@@ -146,7 +146,7 @@ function VoiceSession({
   };
 
   return createPortal(
-    <div className="fixed inset-0 md:pl-64 bg-muted/20 z-30 flex flex-col">
+    <div className="fixed inset-0 md:pl-64 bg-background z-30 flex flex-col">
       {/* Status bar */}
       <div className="bg-card border-b border-border px-4 py-3 flex items-center gap-3 shrink-0 shadow-sm">
         <div className="w-10 h-7 shrink-0">
