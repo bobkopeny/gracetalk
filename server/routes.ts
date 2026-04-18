@@ -75,6 +75,14 @@ function varyThreshold(base: number): number {
   return Math.max(2, Math.min(8, base + delta));
 }
 
+function extractJSON(raw: string): string {
+  const text = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start !== -1 && end !== -1) return text.slice(start, end + 1);
+  return text;
+}
+
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   // Set up auth
   await setupAuth(app);
@@ -426,11 +434,9 @@ Keep the tone warm, constructive, and encouraging. Be specific to this persona's
       ],
     });
 
-    const raw = response.choices[0].message.content || "{}";
-    // Store raw JSON string in content field
+    const raw = extractJSON(response.choices[0].message.content || "{}");
     const feedback = await storage.createFeedback(conversationId, raw);
 
-    // Parse and return structured fields
     let parsed: any = {};
     try { parsed = JSON.parse(raw); } catch { parsed = { generalFeedback: raw, strengths: "", improvements: "", biblicalReferences: "", score: null, converted: false }; }
 
@@ -461,7 +467,7 @@ Keep the tone warm, constructive, and encouraging. Be specific to this persona's
     }
 
     let parsed: any = {};
-    try { parsed = JSON.parse(feedback.content); } catch { parsed = { generalFeedback: feedback.content, strengths: "", improvements: "", biblicalReferences: "", score: null, converted: false }; }
+    try { parsed = JSON.parse(extractJSON(feedback.content)); } catch { parsed = { generalFeedback: feedback.content, strengths: "", improvements: "", biblicalReferences: "", score: null, converted: false }; }
     res.json({ ...feedback, ...parsed });
   });
 
