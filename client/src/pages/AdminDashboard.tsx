@@ -16,7 +16,10 @@ function useAdminStats() {
     queryFn: async () => {
       const res = await fetch("/api/admin/stats", { credentials: "include" });
       if (res.status === 403) throw new Error("forbidden");
-      if (!res.ok) throw new Error("Failed to fetch admin stats");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(`${res.status}: ${body?.message ?? res.statusText}`);
+      }
       return res.json() as Promise<{
         totalUsers: number;
         totalConversations: number;
@@ -56,6 +59,7 @@ function useAdminUsers() {
         createdAt: string;
       }>>;
     },
+    refetchInterval: 30000,
   });
 }
 
@@ -78,6 +82,7 @@ function useAdminPersonas() {
       if (!res.ok) throw new Error("Failed to fetch personas");
       return res.json() as Promise<AdminPersona[]>;
     },
+    refetchInterval: 30000,
   });
 }
 
@@ -95,6 +100,7 @@ function useAdminTestimonials() {
         createdAt: string;
       }>>;
     },
+    refetchInterval: 30000,
   });
 }
 
@@ -237,6 +243,16 @@ export default function AdminDashboard() {
   const [editPersona, setEditPersona] = useState<AdminPersona | null>(null);
   const [expandedPrompts, setExpandedPrompts] = useState<Set<number>>(new Set());
 
+  const clearAllConversations = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/admin/conversations/all", { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Failed to clear conversations");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+    },
+  });
+
   const deletePersona = useMutation({
     mutationFn: async (id: number) => {
       const res = await fetch(`/api/admin/personas/${id}`, { method: "DELETE", credentials: "include" });
@@ -299,13 +315,19 @@ export default function AdminDashboard() {
     );
   }
 
-  if (error?.message === "forbidden") {
+  if (error) {
     return (
       <div className="min-h-screen bg-muted/20 flex items-center justify-center">
         <div className="text-center space-y-2">
           <Shield className="w-12 h-12 text-muted-foreground mx-auto" />
-          <h2 className="text-xl font-bold">Access Denied</h2>
-          <p className="text-muted-foreground text-sm">You don't have admin access.</p>
+          <h2 className="text-xl font-bold">
+            {error.message === "forbidden" ? "Access Denied" : "Dashboard Error"}
+          </h2>
+          <p className="text-muted-foreground text-sm">
+            {error.message === "forbidden"
+              ? "You don't have admin access."
+              : error.message}
+          </p>
         </div>
       </div>
     );
@@ -388,8 +410,24 @@ export default function AdminDashboard() {
 
           {/* Recent Activity */}
           <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
-            <div className="p-5 border-b border-border">
+            <div className="p-5 border-b border-border flex items-center justify-between">
               <h2 className="font-semibold">Recent Activity</h2>
+              {(stats?.recentConversations?.length ?? 0) > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
+                  onClick={() => {
+                    if (confirm("Clear all conversations and activity? This cannot be undone.")) {
+                      clearAllConversations.mutate();
+                    }
+                  }}
+                  disabled={clearAllConversations.isPending}
+                >
+                  {clearAllConversations.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Trash2 className="w-3 h-3 mr-1" />}
+                  Clear All
+                </Button>
+              )}
             </div>
             {!stats?.recentConversations?.length ? (
               <div className="p-6 text-center text-muted-foreground text-sm">No activity yet.</div>

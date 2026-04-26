@@ -638,6 +638,11 @@ No preamble, no explanation, just the suggestion.`;
     res.status(204).send();
   });
 
+  app.delete("/api/admin/conversations/all", requireAdmin, async (_req, res) => {
+    await storage.deleteAllConversations();
+    res.status(204).send();
+  });
+
   app.get("/api/admin/testimonials", requireAdmin, async (_req, res) => {
     const testimonials = await storage.listTestimonials();
     res.json(testimonials);

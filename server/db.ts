@@ -73,4 +73,27 @@ export async function runMigrations() {
   } catch (err: any) {
     console.error("[db] Migration warning (non-fatal):", err?.message);
   }
+  try {
+    await pool.query(`
+      ALTER TABLE user_progress ADD COLUMN IF NOT EXISTS last_mood_index INTEGER;
+    `);
+    console.log("[db] Migration: user_progress.last_mood_index column ready");
+  } catch (err: any) {
+    console.error("[db] Migration warning (non-fatal):", err?.message);
+  }
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_testimonials (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR NOT NULL REFERENCES users(id),
+        display_name TEXT NOT NULL,
+        email TEXT,
+        content TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log("[db] Migration: user_testimonials table ready");
+  } catch (err: any) {
+    console.error("[db] Migration warning (non-fatal):", err?.message);
+  }
 }

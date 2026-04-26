@@ -1,7 +1,7 @@
 import { users, personas, conversations, messages, feedbacks, userProgress, userTestimonials } from "@shared/schema";
 import type { User, UpsertUser, Persona, InsertPersona, Conversation, Message, Feedback, UserProgress, UserTestimonial } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, count, sql } from "drizzle-orm";
+import { eq, desc, asc, and, count, sql } from "drizzle-orm";
 
 export interface IStorage {
   // Auth
@@ -58,6 +58,7 @@ export interface IStorage {
   listAllPersonas(): Promise<Persona[]>;
   listAllUsers(): Promise<User[]>;
   getPersonaStats(): Promise<Array<{ personaName: string; difficulty: number | null; totalSessions: number; prayerMoments: number }>>;
+  deleteAllConversations(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -92,7 +93,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async listPersonas(userId: string): Promise<Persona[]> {
-    return db.select().from(personas).where(eq(personas.userId, userId)).orderBy(desc(personas.createdAt));
+    return db.select().from(personas).where(eq(personas.userId, userId)).orderBy(asc(personas.difficulty), asc(personas.createdAt));
   }
 
   async updatePersona(id: number, data: Partial<Pick<Persona, "gender" | "voice" | "difficulty">>): Promise<Persona> {
@@ -340,7 +341,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async listAllPersonas(): Promise<Persona[]> {
-    return db.select().from(personas).orderBy(desc(personas.createdAt));
+    return db.select().from(personas).orderBy(asc(personas.difficulty), asc(personas.createdAt));
   }
 
   async listAllUsers(): Promise<User[]> {
@@ -360,6 +361,11 @@ export class DatabaseStorage implements IStorage {
       .groupBy(personas.name, personas.difficulty)
       .orderBy(personas.difficulty);
     return rows;
+  }
+
+  async deleteAllConversations(): Promise<void> {
+    await db.delete(messages);
+    await db.delete(conversations);
   }
 }
 
