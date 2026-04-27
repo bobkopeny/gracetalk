@@ -65,7 +65,7 @@ export function CreatePersonaDialog() {
           Create Persona
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-display text-2xl">New Persona</DialogTitle>
         </DialogHeader>
