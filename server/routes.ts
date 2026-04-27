@@ -580,14 +580,16 @@ No preamble, no explanation, just the suggestion.`;
   };
 
   app.get("/api/admin/stats", requireAdmin, async (_req, res) => {
-    const [totalUsers, totalConversations, prayerMoments, recentConversations, personaStats] = await Promise.all([
+    const [totalUsers, totalConversations, prayerMoments, recentConversations, personaStats, conversationPeriods, userPeriods] = await Promise.all([
       storage.countAllUsers(),
       storage.countAllConversations(),
       storage.countConvertedConversations(),
       storage.getRecentConversations(20),
       storage.getPersonaStats(),
+      storage.getConversationPeriodStats(),
+      storage.getUserPeriodStats(),
     ]);
-    res.json({ totalUsers, totalConversations, prayerMoments, recentConversations, personaStats });
+    res.json({ totalUsers, totalConversations, prayerMoments, recentConversations, personaStats, conversationPeriods, userPeriods });
   });
 
   app.get("/api/admin/users", requireAdmin, async (_req, res) => {

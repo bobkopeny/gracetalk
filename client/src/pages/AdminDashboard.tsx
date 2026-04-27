@@ -39,6 +39,8 @@ function useAdminStats() {
           totalSessions: number;
           prayerMoments: number;
         }>;
+        conversationPeriods: { lastDay: number; lastWeek: number; lastMonth: number; lastYear: number; total: number };
+        userPeriods: { lastDay: number; lastWeek: number; lastMonth: number; lastYear: number; total: number };
       }>;
     },
     refetchInterval: 30000,
@@ -383,6 +385,37 @@ export default function AdminDashboard() {
             <StatCard label="Total Users" value={stats?.totalUsers ?? 0} sub="Registered accounts" icon={Users} color="bg-blue-100 text-blue-600" />
             <StatCard label="Total Conversations" value={stats?.totalConversations ?? 0} sub="Practice sessions globally" icon={MessageCircle} color="bg-green-100 text-green-600" />
             <StatCard label="Prayer Moments" value={stats?.prayerMoments ?? 0} sub="Total prayers globally" icon={Heart} color="bg-rose-100 text-rose-500" />
+          </div>
+
+          {/* Period breakdown */}
+          <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-border">
+              <h2 className="font-semibold">Activity by Period</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">New users and conversations over time</p>
+            </div>
+            <div className="divide-y divide-border">
+              {[
+                { label: "Last 24 Hours", users: stats?.userPeriods?.lastDay ?? 0, convs: stats?.conversationPeriods?.lastDay ?? 0 },
+                { label: "Last 7 Days",   users: stats?.userPeriods?.lastWeek ?? 0, convs: stats?.conversationPeriods?.lastWeek ?? 0 },
+                { label: "Last 30 Days",  users: stats?.userPeriods?.lastMonth ?? 0, convs: stats?.conversationPeriods?.lastMonth ?? 0 },
+                { label: "Last Year",     users: stats?.userPeriods?.lastYear ?? 0, convs: stats?.conversationPeriods?.lastYear ?? 0 },
+                { label: "All Time",      users: stats?.userPeriods?.total ?? 0, convs: stats?.conversationPeriods?.total ?? 0 },
+              ].map(({ label, users, convs }) => (
+                <div key={label} className="px-5 py-3 flex items-center justify-between gap-4">
+                  <p className="text-sm font-medium text-foreground w-32 shrink-0">{label}</p>
+                  <div className="flex gap-6 text-right">
+                    <div>
+                      <p className="text-lg font-bold text-blue-600">{users}</p>
+                      <p className="text-[10px] text-muted-foreground">users</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-green-600">{convs}</p>
+                      <p className="text-[10px] text-muted-foreground">conversations</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Per-level stats */}

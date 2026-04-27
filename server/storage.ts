@@ -1,7 +1,7 @@
 import { users, personas, conversations, messages, feedbacks, userProgress, userTestimonials } from "@shared/schema";
 import type { User, UpsertUser, Persona, InsertPersona, Conversation, Message, Feedback, UserProgress, UserTestimonial } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, asc, and, count, sql } from "drizzle-orm";
+import { eq, desc, asc, and, count, gte, sql } from "drizzle-orm";
 
 export interface IStorage {
   // Auth
@@ -58,6 +58,8 @@ export interface IStorage {
   listAllPersonas(): Promise<Persona[]>;
   listAllUsers(): Promise<User[]>;
   getPersonaStats(): Promise<Array<{ personaName: string; difficulty: number | null; totalSessions: number; prayerMoments: number }>>;
+  getUserPeriodStats(): Promise<{ lastDay: number; lastWeek: number; lastMonth: number; lastYear: number; total: number }>;
+  getConversationPeriodStats(): Promise<{ lastDay: number; lastWeek: number; lastMonth: number; lastYear: number; total: number }>;
   deleteAllConversations(): Promise<void>;
 }
 
@@ -361,6 +363,38 @@ export class DatabaseStorage implements IStorage {
       .groupBy(personas.name, personas.difficulty)
       .orderBy(personas.difficulty);
     return rows;
+  }
+
+  async getUserPeriodStats(): Promise<{ lastDay: number; lastWeek: number; lastMonth: number; lastYear: number; total: number }> {
+    const now = new Date();
+    const dayAgo   = new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000);
+    const weekAgo  = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const yearAgo  = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+    const [d, w, m, y, t] = await Promise.all([
+      db.select({ n: count(users.id) }).from(users).where(gte(users.createdAt, dayAgo)),
+      db.select({ n: count(users.id) }).from(users).where(gte(users.createdAt, weekAgo)),
+      db.select({ n: count(users.id) }).from(users).where(gte(users.createdAt, monthAgo)),
+      db.select({ n: count(users.id) }).from(users).where(gte(users.createdAt, yearAgo)),
+      db.select({ n: count(users.id) }).from(users),
+    ]);
+    return { lastDay: d[0].n, lastWeek: w[0].n, lastMonth: m[0].n, lastYear: y[0].n, total: t[0].n };
+  }
+
+  async getConversationPeriodStats(): Promise<{ lastDay: number; lastWeek: number; lastMonth: number; lastYear: number; total: number }> {
+    const now = new Date();
+    const dayAgo   = new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000);
+    const weekAgo  = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const yearAgo  = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+    const [d, w, m, y, t] = await Promise.all([
+      db.select({ n: count(conversations.id) }).from(conversations).where(gte(conversations.createdAt, dayAgo)),
+      db.select({ n: count(conversations.id) }).from(conversations).where(gte(conversations.createdAt, weekAgo)),
+      db.select({ n: count(conversations.id) }).from(conversations).where(gte(conversations.createdAt, monthAgo)),
+      db.select({ n: count(conversations.id) }).from(conversations).where(gte(conversations.createdAt, yearAgo)),
+      db.select({ n: count(conversations.id) }).from(conversations),
+    ]);
+    return { lastDay: d[0].n, lastWeek: w[0].n, lastMonth: m[0].n, lastYear: y[0].n, total: t[0].n };
   }
 
   async deleteAllConversations(): Promise<void> {
