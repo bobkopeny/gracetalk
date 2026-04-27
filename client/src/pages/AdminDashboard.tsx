@@ -234,12 +234,12 @@ function PersonaFormDialog({
 
 export default function AdminDashboard() {
   const queryClient = useQueryClient();
-  const { data: stats, isLoading, error, isFetching: statsFetching } = useAdminStats();
-  const { data: users, isFetching: usersFetching } = useAdminUsers();
-  const { data: personas, isFetching: personasFetching } = useAdminPersonas();
-  const { data: testimonials, isFetching: testimonialsFetching } = useAdminTestimonials();
-  const isRefreshing = statsFetching || usersFetching || personasFetching || testimonialsFetching;
+  const { data: stats, isLoading, error } = useAdminStats();
+  const { data: users } = useAdminUsers();
+  const { data: personas } = useAdminPersonas();
+  const { data: testimonials } = useAdminTestimonials();
 
+  const [refreshing, setRefreshing] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [editPersona, setEditPersona] = useState<AdminPersona | null>(null);
   const [expandedPrompts, setExpandedPrompts] = useState<Set<number>>(new Set());
@@ -294,11 +294,15 @@ export default function AdminDashboard() {
     },
   });
 
-  const handleRefresh = () => {
-    queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/admin/testimonials"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/admin/personas"] });
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([
+      queryClient.refetchQueries({ queryKey: ["/api/admin/stats"] }),
+      queryClient.refetchQueries({ queryKey: ["/api/admin/users"] }),
+      queryClient.refetchQueries({ queryKey: ["/api/admin/testimonials"] }),
+      queryClient.refetchQueries({ queryKey: ["/api/admin/personas"] }),
+    ]);
+    setRefreshing(false);
   };
 
   const togglePrompt = (id: number) => {
@@ -368,9 +372,9 @@ export default function AdminDashboard() {
                 <p className="text-sm text-muted-foreground">Live usage across all users</p>
               </div>
             </div>
-            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
-              <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
-              {isRefreshing ? "Refreshing..." : "Refresh"}
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
+              {refreshing ? "Refreshing..." : "Refresh"}
             </Button>
           </div>
 
