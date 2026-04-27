@@ -234,10 +234,11 @@ function PersonaFormDialog({
 
 export default function AdminDashboard() {
   const queryClient = useQueryClient();
-  const { data: stats, isLoading, error } = useAdminStats();
-  const { data: users } = useAdminUsers();
-  const { data: personas } = useAdminPersonas();
-  const { data: testimonials } = useAdminTestimonials();
+  const { data: stats, isLoading, error, isFetching: statsFetching } = useAdminStats();
+  const { data: users, isFetching: usersFetching } = useAdminUsers();
+  const { data: personas, isFetching: personasFetching } = useAdminPersonas();
+  const { data: testimonials, isFetching: testimonialsFetching } = useAdminTestimonials();
+  const isRefreshing = statsFetching || usersFetching || personasFetching || testimonialsFetching;
 
   const [addOpen, setAddOpen] = useState(false);
   const [editPersona, setEditPersona] = useState<AdminPersona | null>(null);
@@ -297,6 +298,7 @@ export default function AdminDashboard() {
     queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
     queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
     queryClient.invalidateQueries({ queryKey: ["/api/admin/testimonials"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/personas"] });
   };
 
   const togglePrompt = (id: number) => {
@@ -366,9 +368,9 @@ export default function AdminDashboard() {
                 <p className="text-sm text-muted-foreground">Live usage across all users</p>
               </div>
             </div>
-            <Button variant="outline" size="sm" onClick={handleRefresh}>
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Refresh
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
+              {isRefreshing ? "Refreshing..." : "Refresh"}
             </Button>
           </div>
 
