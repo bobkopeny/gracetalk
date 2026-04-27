@@ -125,9 +125,9 @@ function VoiceSession({
     onEnd();
   };
 
-  const handleTypeClick = async () => {
-    onSwitchToType?.();
-    await room.disconnect();
+  const handleTypeClick = () => {
+    onSwitchToType?.();          // switch UI immediately
+    room.disconnect().catch(() => {});  // disconnect in background
   };
 
   const handleHelp = async () => {
@@ -380,19 +380,15 @@ export function LiveKitVoiceCall({
     onActiveChange?.(false);
 
     if (switchingToTypeRef.current) {
+      // UI already switched — just schedule a transcript refresh
       switchingToTypeRef.current = false;
       setTimeout(() => onTranscriptsUpdated?.(), 1500);
-      onSwitchToType?.();
     } else if (onCallEnded) {
       onCallEnded();
     } else {
       setTimeout(() => onTranscriptsUpdated?.(), 1500);
     }
-  }, [onTranscriptsUpdated, onActiveChange, onCallEnded, onSwitchToType]);
-
-  const handleSwitchToType = useCallback(() => {
-    switchingToTypeRef.current = true;
-  }, []);
+  }, [onTranscriptsUpdated, onActiveChange, onCallEnded]);
 
   if (!isActive || !token || !serverUrl) {
     if (startCallRef) return null;
@@ -426,7 +422,10 @@ export function LiveKitVoiceCall({
       <VoiceSession
         conversationId={conversationId}
         onEnd={() => {}}
-        onSwitchToType={onSwitchToType !== undefined ? handleSwitchToType : undefined}
+        onSwitchToType={onSwitchToType !== undefined ? () => {
+          switchingToTypeRef.current = true;
+          onSwitchToType();
+        } : undefined}
         micUnavailable={micUnavailable}
         personaName={personaName}
       />
