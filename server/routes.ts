@@ -807,10 +807,12 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
     const personaAttempts = allProgress.find(p => p.personaId === persona.id)?.attempts ?? 0;
 
     // Prepend past messages with a system separator so the agent understands the context boundary
-    const pastHistory = pastVoiceMessages.length > 0
+    // Also trim the last 8 messages so no conversation ending is ever the final context item
+    const trimmedPast = pastVoiceMessages.slice(0, Math.max(0, pastVoiceMessages.length - 8));
+    const pastHistory = trimmedPast.length > 0
       ? [
           { role: "system", content: `MEMORY — You have spoken with this person before. The following are excerpts from earlier conversations. Use them as background context only. You are starting a completely fresh, new conversation right now.` },
-          ...pastVoiceMessages.map(m => ({ role: m.role, content: m.content })),
+          ...trimmedPast.map(m => ({ role: m.role, content: m.content })),
           { role: "system", content: `--- End of memory. A NEW conversation is starting now. Greet this person naturally as if you are seeing them again today. Do NOT reference any previous goodbye or farewell. Begin fresh. ---` },
         ]
       : [];
