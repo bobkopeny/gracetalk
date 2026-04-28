@@ -96,4 +96,14 @@ export async function runMigrations() {
   } catch (err: any) {
     console.error("[db] Migration warning (non-fatal):", err?.message);
   }
+
+  try {
+    await db.execute(sql`
+      UPDATE personas SET voice = 'Sal', gender = 'female'
+      WHERE name = 'Hurt by the Church' AND (voice != 'Sal' OR gender != 'female')
+    `);
+    console.log("[db] Migration: Hurt by the Church voice/gender corrected to Sal/female");
+  } catch (err: any) {
+    console.error("[db] Migration warning (non-fatal):", err?.message);
+  }
 }
