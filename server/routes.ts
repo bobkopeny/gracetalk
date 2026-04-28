@@ -24,10 +24,14 @@ const CHARACTER_NAMES: Record<string, string> = {
   "Doubting Thomas": "Thomas",
   "Pete": "Pete",
   "Gary": "Gary",
+  "Gary Goodguy": "Gary",
 };
 
 function getCharacterName(personaName: string, gender?: string | null): string {
-  return CHARACTER_NAMES[personaName] ?? (gender === "male" ? "Alex" : "Jordan");
+  // Case-insensitive lookup so "PETE", "Doubting THOMAS" etc. still match
+  const key = Object.keys(CHARACTER_NAMES).find(k => k.toLowerCase() === personaName.toLowerCase());
+  if (key) return CHARACTER_NAMES[key];
+  return gender === "male" ? "Alex" : "Jordan";
 }
 
 const SESSION_MOODS: Record<number, string[]> = {

@@ -106,4 +106,15 @@ export async function runMigrations() {
   } catch (err: any) {
     console.error("[db] Migration warning (non-fatal):", err?.message);
   }
+
+  try {
+    // Fix gender for any persona using a male voice but stored as female
+    await db.execute(sql`
+      UPDATE personas SET gender = 'male'
+      WHERE voice IN ('Rex', 'Leo', 'Orion', 'Vale') AND gender != 'male'
+    `);
+    console.log("[db] Migration: fixed gender=male for personas with male voices");
+  } catch (err: any) {
+    console.error("[db] Migration warning (non-fatal):", err?.message);
+  }
 }
