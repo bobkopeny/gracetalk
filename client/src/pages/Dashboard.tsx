@@ -45,13 +45,7 @@ export default function Dashboard() {
   });
 
   const handleStartPracticing = () => {
-    const sortedPersonas = [...(personas ?? [])].sort((a, b) => (a.difficulty ?? 3) - (b.difficulty ?? 3));
-    const currentPersona = sortedPersonas.find(p => (p.difficulty ?? 3) === unlockedLevel)
-      ?? sortedPersonas[0];
-    if (!currentPersona) return;
-    createConversation.mutate(currentPersona.id, {
-      onSuccess: (data) => setLocation(`/chat/${data.id}`),
-    });
+    setLocation("/personas");
   };
 
   if (!user) return null;
