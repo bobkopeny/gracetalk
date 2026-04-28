@@ -797,9 +797,16 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
       return res.status(404).json({ message: "Conversation not found" });
     }
 
-    const persona = await storage.getPersona(conversation.personaId);
+    let persona = await storage.getPersona(conversation.personaId);
     if (!persona) {
       return res.status(404).json({ message: "Persona not found" });
+    }
+
+    // Auto-correct voice/gender for default personas before starting the session
+    const expectedVG = DEFAULT_PERSONA_VOICE_GENDER[persona.name];
+    if (expectedVG && (persona.voice !== expectedVG.voice || persona.gender !== expectedVG.gender)) {
+      await storage.updatePersona(persona.id, { voice: expectedVG.voice, gender: expectedVG.gender });
+      persona = { ...persona, voice: expectedVG.voice, gender: expectedVG.gender };
     }
 
     const apiKey = process.env.LIVEKIT_API_KEY;
