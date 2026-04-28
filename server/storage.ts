@@ -1,7 +1,7 @@
 import { users, personas, conversations, messages, feedbacks, userProgress, userTestimonials } from "@shared/schema";
 import type { User, UpsertUser, Persona, InsertPersona, Conversation, Message, Feedback, UserProgress, UserTestimonial } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, asc, and, count, gte, sql } from "drizzle-orm";
+import { eq, desc, asc, and, count, gte, sql, notInArray } from "drizzle-orm";
 
 export interface IStorage {
   // Auth
@@ -259,7 +259,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(conversations.createdAt))
       .limit(1);
 
-    const excludeIds = [excludeConversationId, lastConv?.id].filter(Boolean);
+    const excludeIds = [excludeConversationId, lastConv?.id].filter((id): id is number => id !== undefined);
 
     const rows = await db
       .select({ message: messages })
@@ -269,7 +269,7 @@ export class DatabaseStorage implements IStorage {
         and(
           eq(conversations.userId, userId),
           eq(conversations.personaId, personaId),
-          sql`${conversations.id} != ALL(ARRAY[${sql.join(excludeIds.map(id => sql`${id}`), sql`, `)}])`,
+          notInArray(conversations.id, excludeIds),
           sql`${messages.content} != ''`
         )
       )
