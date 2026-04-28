@@ -807,11 +807,13 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
     const personaAttempts = allProgress.find(p => p.personaId === persona.id)?.attempts ?? 0;
 
     // Prepend past messages with a system separator so the agent understands the context boundary
-    const pastHistory = pastVoiceMessages.length > 0
+    // Trim the last 5 messages so the AI never sees the closing exchange from the previous session
+    const trimmedPast = pastVoiceMessages.slice(0, Math.max(0, pastVoiceMessages.length - 5));
+    const pastHistory = trimmedPast.length > 0
       ? [
-          { role: "system", content: `MEMORY — You have spoken with this person before. The following are excerpts from your past conversations. Use them as background context only — do NOT continue or reference any goodbye, farewell, or closing exchange. You are starting a completely fresh, new conversation right now.` },
-          ...pastVoiceMessages.map(m => ({ role: m.role, content: m.content })),
-          { role: "system", content: `--- End of memory. A NEW conversation is starting now. The previous session has ended. You must open this conversation with a natural greeting as if you are seeing this person again for the first time today. Do NOT say anything that continues or references a previous goodbye or closing remark. Begin fresh. ---` },
+          { role: "system", content: `MEMORY — You have spoken with this person before. The following are excerpts from earlier in your past conversations (closing exchanges have been omitted). Use them as background context only. You are starting a completely fresh, new conversation right now.` },
+          ...trimmedPast.map(m => ({ role: m.role, content: m.content })),
+          { role: "system", content: `--- End of memory. A NEW conversation is starting now. Greet this person naturally as if you are seeing them again today. Do NOT continue or reference any previous goodbye or farewell. Begin fresh. ---` },
         ]
       : [];
 
