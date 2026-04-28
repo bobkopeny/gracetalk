@@ -418,6 +418,38 @@ export default function AdminDashboard() {
             </div>
           </div>
 
+          {/* New Accounts table */}
+          <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-border">
+              <h2 className="font-semibold">New Accounts</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Registered users by time window</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="px-5 py-2 text-left text-xs text-muted-foreground font-medium">Period</th>
+                    <th className="px-5 py-2 text-right text-xs text-muted-foreground font-medium">New Users</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {[
+                    { label: "Last 24 Hours", value: stats?.userPeriods?.lastDay ?? 0 },
+                    { label: "Last 7 Days",   value: stats?.userPeriods?.lastWeek ?? 0 },
+                    { label: "Last 30 Days",  value: stats?.userPeriods?.lastMonth ?? 0 },
+                    { label: "Last Year",     value: stats?.userPeriods?.lastYear ?? 0 },
+                    { label: "All Time",      value: stats?.userPeriods?.total ?? 0 },
+                  ].map(({ label, value }) => (
+                    <tr key={label} className="hover:bg-muted/30 transition-colors">
+                      <td className="px-5 py-3 font-medium text-foreground">{label}</td>
+                      <td className="px-5 py-3 text-right font-bold text-blue-600">{value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           {/* Per-level stats */}
           {dedupedPersonaStats.length > 0 && (
             <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
