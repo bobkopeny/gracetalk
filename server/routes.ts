@@ -115,6 +115,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     "The Skeptical Atheist": 5,
   };
 
+  const DEFAULT_PERSONA_VOICE_GENDER: Record<string, { voice: string; gender: string }> = {
+    "The Open Heart":       { voice: "Aria", gender: "female" },
+    "The Spiritual Agnostic": { voice: "Eve",  gender: "female" },
+    "The Professional":     { voice: "Leo",  gender: "male"   },
+    "Hurt by the Church":   { voice: "Sal",  gender: "female" },
+    "The Skeptical Atheist":{ voice: "Rex",  gender: "male"   },
+  };
+
   app.get(api.personas.list.path, requireAuth, async (req, res) => {
     const userId = (req.user as any).id;
     let personas = await storage.listPersonas(userId);
@@ -122,12 +130,27 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       await storage.seedDefaultPersonas(userId);
       personas = await storage.listPersonas(userId);
     }
-    // Fix difficulty for default personas that may have been seeded with wrong values
+    // Fix difficulty, voice, and gender for default personas that may have wrong values
     for (const persona of personas) {
-      const expected = DEFAULT_PERSONA_DIFFICULTY[persona.name];
-      if (expected !== undefined && persona.difficulty !== expected) {
-        await storage.updatePersona(persona.id, { difficulty: expected });
-        persona.difficulty = expected;
+      const expectedDifficulty = DEFAULT_PERSONA_DIFFICULTY[persona.name];
+      const expectedVoiceGender = DEFAULT_PERSONA_VOICE_GENDER[persona.name];
+      const updates: Record<string, any> = {};
+      if (expectedDifficulty !== undefined && persona.difficulty !== expectedDifficulty) {
+        updates.difficulty = expectedDifficulty;
+        persona.difficulty = expectedDifficulty;
+      }
+      if (expectedVoiceGender) {
+        if (persona.voice !== expectedVoiceGender.voice) {
+          updates.voice = expectedVoiceGender.voice;
+          persona.voice = expectedVoiceGender.voice;
+        }
+        if (persona.gender !== expectedVoiceGender.gender) {
+          updates.gender = expectedVoiceGender.gender;
+          persona.gender = expectedVoiceGender.gender;
+        }
+      }
+      if (Object.keys(updates).length > 0) {
+        await storage.updatePersona(persona.id, updates);
       }
     }
     res.json(personas);
