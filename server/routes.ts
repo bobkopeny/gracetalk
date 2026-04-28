@@ -211,16 +211,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
     const userId = (req.user as any).id;
 
-    // Reuse the most recent empty conversation for this persona instead of
-    // accumulating duplicate blank sessions
-    const existing = await storage.listConversations(userId);
-    const emptyMatch = existing.find(
-      (c) => c.personaId === personaId && c.messageCount === 0
-    );
-    if (emptyMatch) {
-      return res.status(201).json(emptyMatch);
-    }
-
+    // Always create a fresh conversation — never reuse old ones
     const conversation = await storage.createConversation(
       userId,
       personaId,
