@@ -809,9 +809,9 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
     // Prepend past messages with a system separator so the agent understands the context boundary
     const pastHistory = pastVoiceMessages.length > 0
       ? [
-          { role: "system", content: `MEMORY — You have spoken with this person before. Here are your previous conversations. Remember them and refer to them naturally when relevant:` },
+          { role: "system", content: `MEMORY — You have spoken with this person before. The following are excerpts from your past conversations. Use them as background context only — do NOT continue or reference any goodbye, farewell, or closing exchange. You are starting a completely fresh, new conversation right now.` },
           ...pastVoiceMessages.map(m => ({ role: m.role, content: m.content })),
-          { role: "system", content: `--- End of past conversations. Current conversation begins now. ---` },
+          { role: "system", content: `--- End of memory. A NEW conversation is starting now. The previous session has ended. You must open this conversation with a natural greeting as if you are seeing this person again for the first time today. Do NOT say anything that continues or references a previous goodbye or closing remark. Begin fresh. ---` },
         ]
       : [];
 
