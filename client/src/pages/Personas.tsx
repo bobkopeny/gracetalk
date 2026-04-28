@@ -1,5 +1,5 @@
 import { usePersonas, useDeletePersona, useCreatePersona } from "@/hooks/use-personas";
-import { useCreateConversation } from "@/hooks/use-conversations";
+import { useCreateConversation, useUserProgress } from "@/hooks/use-conversations";
 import { Navigation, MobileHeader, MobileNav } from "@/components/Navigation";
 import { PersonaCard } from "@/components/PersonaCard";
 import { CreatePersonaDialog } from "@/components/CreatePersonaDialog";
@@ -11,11 +11,24 @@ import { useState } from "react";
 
 export default function Personas() {
   const { data: personas, isLoading } = usePersonas();
+  const { data: progress } = useUserProgress();
   const createConversation = useCreateConversation();
   const deletePersona = useDeletePersona();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const progressMap = Object.fromEntries((progress ?? []).map(p => [p.personaId, p]));
+
+  const levelPassed = (level: number) =>
+    (personas ?? []).some(p => (p.difficulty ?? 3) === level && progressMap[p.id]?.passed);
+
+  const unlockedLevel = (() => {
+    for (let lvl = 5; lvl >= 1; lvl--) {
+      if (levelPassed(lvl)) return Math.min(5, lvl + 1);
+    }
+    return 1;
+  })();
 
   const handleStartChat = (personaId: number) => {
     createConversation.mutate(personaId, {
@@ -55,14 +68,22 @@ export default function Personas() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {personas?.map((persona) => (
-                <PersonaCard 
-                  key={persona.id} 
-                  persona={persona} 
-                  onStartChat={handleStartChat}
-                  onDelete={setDeleteId}
-                />
-              ))}
+              {personas?.map((persona) => {
+                const level = persona.difficulty ?? 3;
+                const isDefault = ["The Open Heart","The Spiritual Agnostic","The Professional","Hurt by the Church","The Skeptical Atheist"].includes(persona.name);
+                const locked = isDefault && level > unlockedLevel;
+                return (
+                  <PersonaCard
+                    key={persona.id}
+                    persona={persona}
+                    onStartChat={locked ? undefined : handleStartChat}
+                    onDelete={setDeleteId}
+                    progress={progressMap[persona.id]}
+                    locked={locked}
+                    unlocksAtLevel={locked ? level : undefined}
+                  />
+                );
+              })}
             </div>
           )}
 
