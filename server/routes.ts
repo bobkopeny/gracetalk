@@ -797,30 +797,21 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
     const roomName = `conversation-${conversationId}-${Date.now()}`;
     const identity = (req.user as any).id;
 
-    // Pass current conversation messages + past conversation memory to the agent
+    // Pass current conversation messages to the agent
     const voiceUserId = (req.user as any).id;
-    const [recentMessages, pastVoiceMessages, allProgress] = await Promise.all([
+    const [recentMessages, allProgress] = await Promise.all([
       storage.getMessages(Number(conversationId)),
-      storage.getPreviousMessages(voiceUserId, persona.id, Number(conversationId), 40),
       storage.getUserProgress(voiceUserId),
     ]);
     const personaAttempts = allProgress.find(p => p.personaId === persona.id)?.attempts ?? 0;
 
-    // Prepend past messages with a system separator so the agent understands the context boundary
-    // Also trim the last 8 messages so no conversation ending is ever the final context item
-    const trimmedPast = pastVoiceMessages.slice(0, Math.max(0, pastVoiceMessages.length - 8));
-    const pastHistory = trimmedPast.length > 0
-      ? [
-          { role: "system", content: `MEMORY — You have spoken with this person before. The following are excerpts from earlier conversations. Use them as background context only. You are starting a completely fresh, new conversation right now.` },
-          ...trimmedPast.map(m => ({ role: m.role, content: m.content })),
-          { role: "system", content: `--- End of memory. A NEW conversation is starting now. Greet this person naturally as if you are seeing them again today. Do NOT reference any previous goodbye or farewell. Begin fresh. ---` },
-        ]
-      : [];
-
-    const messageHistory = [
-      ...pastHistory,
-      ...recentMessages.slice(-30).map(m => ({ role: m.role, content: m.content })),
-    ];
+    // Only include past conversation memory when RESUMING (conversation already has messages).
+    // For brand new conversations, always start completely fresh — no memory injected.
+    let messageHistory: { role: string; content: string }[] = [];
+    if (recentMessages.length > 0) {
+      // Resuming an in-progress conversation — include its messages only
+      messageHistory = recentMessages.slice(-30).map(m => ({ role: m.role, content: m.content }));
+    }
 
     const personaDifficulty = (persona.difficulty ?? 3) as 1 | 2 | 3 | 4 | 5;
     const baseThreshold = DIFFICULTY_CONFIG[personaDifficulty]?.threshold ?? 4;
