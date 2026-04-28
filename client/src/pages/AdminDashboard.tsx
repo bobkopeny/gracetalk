@@ -9,6 +9,7 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { XAI_VOICES } from "@shared/models/persona";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 function useAdminStats() {
   return useQuery({
@@ -241,6 +242,7 @@ export default function AdminDashboard() {
   const { data: personas } = useAdminPersonas();
   const { data: testimonials } = useAdminTestimonials();
 
+  const { toast } = useToast();
   const [refreshing, setRefreshing] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [editPersona, setEditPersona] = useState<AdminPersona | null>(null);
@@ -289,10 +291,15 @@ export default function AdminDashboard() {
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error("Failed to update persona");
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/personas"] });
       setEditPersona(null);
+      toast({ title: "Persona saved" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Save failed", description: err.message, variant: "destructive" });
     },
   });
 
@@ -614,6 +621,9 @@ export default function AdminDashboard() {
                           <p className="font-medium text-sm text-foreground">{persona.name}</p>
                           <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
                             Lv {persona.difficulty}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                            {persona.voice} {persona.gender === "female" ? "♀" : "♂"}
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{persona.description}</p>
