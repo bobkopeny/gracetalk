@@ -245,7 +245,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPreviousMessages(userId: string, personaId: number, excludeConversationId: number, limit: number): Promise<Message[]> {
-    // Get messages from past conversations with this persona, most recent conversations first
+    // Find the most recent past conversation with this persona (to exclude it — it contains the last goodbye)
+    const [lastConv] = await db
+      .select({ id: conversations.id })
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.userId, userId),
+          eq(conversations.personaId, personaId),
+          sql`${conversations.id} != ${excludeConversationId}`
+        )
+      )
+      .orderBy(desc(conversations.createdAt))
+      .limit(1);
+
+    const excludeIds = [excludeConversationId, lastConv?.id].filter(Boolean);
+
     const rows = await db
       .select({ message: messages })
       .from(messages)
@@ -254,7 +269,7 @@ export class DatabaseStorage implements IStorage {
         and(
           eq(conversations.userId, userId),
           eq(conversations.personaId, personaId),
-          sql`${conversations.id} != ${excludeConversationId}`,
+          sql`${conversations.id} != ALL(ARRAY[${sql.join(excludeIds.map(id => sql`${id}`), sql`, `)}])`,
           sql`${messages.content} != ''`
         )
       )
