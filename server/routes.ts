@@ -124,7 +124,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     "The Open Heart":       { voice: "Aria", gender: "female" },
     "The Spiritual Agnostic": { voice: "Eve",  gender: "female" },
     "The Professional":     { voice: "Leo",  gender: "male"   },
-    "Hurt by the Church":   { voice: "Sal",  gender: "female" },
+    "Hurt by the Church":   { voice: "Eve",  gender: "female" },
     "The Skeptical Atheist":{ voice: "Rex",  gender: "male"   },
   };
 
