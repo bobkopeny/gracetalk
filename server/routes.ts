@@ -234,8 +234,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (!conversation || conversation.userId !== (req.user as any).id) {
       return res.status(404).json({ message: "Conversation not found" });
     }
-    const messages = await storage.getMessages(conversation.id);
-    res.json({ ...conversation, messages });
+    const [messages, feedback] = await Promise.all([
+      storage.getMessages(conversation.id),
+      storage.getFeedback(conversation.id),
+    ]);
+    res.json({ ...conversation, messages, hasFeedback: !!feedback });
   });
 
   app.delete("/api/conversations/:id", requireAuth, async (req, res) => {

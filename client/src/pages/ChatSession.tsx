@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useLocation } from "wouter";
-import { useConversation, useGenerateFeedback, useSendMessage } from "@/hooks/use-conversations";
+import { useConversation, useGenerateFeedback, useSendMessage, useCreateConversation } from "@/hooks/use-conversations";
 import { usePersona } from "@/hooks/use-personas";
 import { Navigation } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
-import { Loader2, Phone, ArrowLeft, CheckCircle2, Send, Keyboard } from "lucide-react";
+import { Loader2, Phone, ArrowLeft, CheckCircle2, Send, Keyboard, RefreshCw, BarChart2 } from "lucide-react";
 import { LiveKitVoiceCall } from "@/components/LiveKitVoiceCall";
+import { Link } from "wouter";
 
 export default function ChatSession() {
   const { id } = useParams();
@@ -16,6 +17,7 @@ export default function ChatSession() {
   const { data: persona } = usePersona(conversation?.personaId || 0);
   const generateFeedback = useGenerateFeedback();
   const sendMessage = useSendMessage();
+  const createConversation = useCreateConversation();
 
   const startCallRef = useRef<(() => void) | null>(null);
   const [callActive, setCallActive] = useState(false);
@@ -80,6 +82,72 @@ export default function ChatSession() {
 
   const hasMessages = conversation.messages.length > 0;
   const visibleMessages = conversation.messages.filter((m: any) => m.role !== "system");
+  const isCompleted = (conversation as any).hasFeedback || conversation.converted;
+
+  // ── Completed conversation: read-only view ────────────────────────────────
+  if (isCompleted && !textMode && !callActive) {
+    return (
+      <div className="min-h-screen bg-muted/20 md:pl-64 flex flex-col">
+        <Navigation />
+        <div className="bg-card border-b border-border px-4 py-3 flex items-center gap-3 shadow-sm">
+          <Button variant="ghost" size="icon" onClick={() => setLocation("/history")}>
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <div className="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold shrink-0">
+            {persona?.name?.[0] ?? "?"}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-foreground leading-none truncate">{persona?.name}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {conversation.converted ? "Prayer Moment — Completed" : "Session Complete"}
+            </p>
+          </div>
+        </div>
+
+        {/* Completed banner */}
+        <div className="mx-4 mt-4 rounded-xl border border-green-200 bg-green-50 p-4 flex items-start gap-3">
+          <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-green-800">This session is complete.</p>
+            <p className="text-xs text-green-700 mt-0.5">To practice with {persona?.name} again, start a fresh session — they'll have a different mood and openness level.</p>
+          </div>
+        </div>
+
+        {/* Action buttons */}
+        <div className="mx-4 mt-3 flex gap-2">
+          <Link href={`/feedback/${conversationId}`}>
+            <Button variant="outline" className="gap-2 rounded-xl">
+              <BarChart2 className="w-4 h-4" />
+              View Feedback
+            </Button>
+          </Link>
+          <Button
+            className="gap-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white"
+            disabled={createConversation.isPending}
+            onClick={() => createConversation.mutate(conversation.personaId, { onSuccess: (d) => setLocation(`/chat/${d.id}`) })}
+          >
+            {createConversation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            Start Fresh
+          </Button>
+        </div>
+
+        {/* Read-only chat history */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 mt-2">
+          {visibleMessages.map((msg: any) => (
+            <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm opacity-80 ${
+                msg.role === "user"
+                  ? "bg-primary text-primary-foreground rounded-br-sm"
+                  : "bg-card border border-border text-foreground rounded-bl-sm"
+              }`}>
+                {msg.content}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   // ── Text mode UI ──────────────────────────────────────────────────────────
   if (textMode) {

@@ -19,7 +19,7 @@ export interface IStorage {
   // Chat
   createConversation(userId: string, personaId: number, title: string): Promise<Conversation>;
   getConversation(id: number): Promise<Conversation | undefined>;
-  listConversations(userId: string): Promise<(Conversation & { personaName: string; messageCount: number; lastMessage: string | null })[]>;
+  listConversations(userId: string): Promise<(Conversation & { personaName: string; messageCount: number; lastMessage: string | null; hasFeedback: boolean })[]>;
   createMessage(conversationId: number, role: string, content: string): Promise<Message>;
   getMessages(conversationId: number): Promise<Message[]>;
 
@@ -170,7 +170,7 @@ export class DatabaseStorage implements IStorage {
     return conversation;
   }
 
-  async listConversations(userId: string): Promise<(Conversation & { personaName: string; messageCount: number; lastMessage: string | null })[]> {
+  async listConversations(userId: string): Promise<(Conversation & { personaName: string; messageCount: number; lastMessage: string | null; hasFeedback: boolean })[]> {
     const rows = await db
       .select({
         conversation: conversations,
@@ -182,6 +182,7 @@ export class DatabaseStorage implements IStorage {
           ORDER BY created_at DESC
           LIMIT 1
         )`,
+        hasFeedback: sql<boolean>`EXISTS(SELECT 1 FROM feedbacks WHERE conversation_id = ${conversations.id})`,
       })
       .from(conversations)
       .leftJoin(personas, eq(conversations.personaId, personas.id))
@@ -195,6 +196,7 @@ export class DatabaseStorage implements IStorage {
       personaName: row.personaName,
       messageCount: row.messageCount,
       lastMessage: row.lastMessage,
+      hasFeedback: row.hasFeedback,
     }));
   }
 

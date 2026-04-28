@@ -3,7 +3,7 @@ import { usePersonas } from "@/hooks/use-personas";
 import { useConversations, useCreateConversation, useUserProgress } from "@/hooks/use-conversations";
 import { Navigation, MobileHeader, MobileNav } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
-import { Phone, Trophy, Lock, Star, Clock, Trash2, ChevronRight, BarChart2, MessageSquare } from "lucide-react";
+import { Phone, Trophy, Lock, Star, Clock, Trash2, ChevronRight, BarChart2, MessageSquare, CheckCircle2, PlayCircle } from "lucide-react";
 import { useLocation, Link } from "wouter";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -185,39 +185,67 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="divide-y divide-border">
-                {recentConversations.map((conv) => (
-                  <div key={conv.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/20 transition-colors">
-                    <div className="w-9 h-9 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-bold text-sm shrink-0">
-                      {conv.personaName?.[0] ?? "?"}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <Link href={`/chat/${conv.id}`}>
-                        <p className="text-sm font-semibold text-teal-600 hover:underline truncate">
-                          {conv.personaName}
-                        </p>
-                      </Link>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                        <Clock className="w-3 h-3 shrink-0" />
-                        {format(new Date(conv.createdAt), "MMM d, yyyy · h:mm a")}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
-                        onClick={() => {
-                          if (confirm("Delete this conversation?")) deleteConversation.mutate(conv.id);
-                        }}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                      <Link href={`/chat/${conv.id}`}>
-                        <button className="p-1.5 text-muted-foreground hover:text-primary transition-colors">
-                          <ChevronRight className="w-4 h-4" />
+                {recentConversations.map((conv) => {
+                  const isCompleted = (conv as any).hasFeedback || conv.converted;
+                  const isInProgress = !isCompleted && conv.messageCount > 0;
+                  return (
+                    <div key={conv.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/20 transition-colors">
+                      <div className="w-9 h-9 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-bold text-sm shrink-0">
+                        {conv.personaName?.[0] ?? "?"}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">{conv.personaName}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Clock className="w-3 h-3 shrink-0" />
+                            {format(new Date(conv.createdAt), "MMM d, yyyy · h:mm a")}
+                          </p>
+                          {isInProgress && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5">
+                              <PlayCircle className="w-2.5 h-2.5" />
+                              In Progress
+                            </span>
+                          )}
+                          {conv.converted && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-rose-600 bg-rose-50 border border-rose-200 rounded-full px-1.5 py-0.5">
+                              <CheckCircle2 className="w-2.5 h-2.5" />
+                              Prayer Moment
+                            </span>
+                          )}
+                          {!conv.converted && (conv as any).hasFeedback && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-green-600 bg-green-50 border border-green-200 rounded-full px-1.5 py-0.5">
+                              <CheckCircle2 className="w-2.5 h-2.5" />
+                              Completed
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
+                          onClick={() => {
+                            if (confirm("Delete this conversation?")) deleteConversation.mutate(conv.id);
+                          }}
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </button>
-                      </Link>
+                        {isInProgress ? (
+                          <Link href={`/chat/${conv.id}`}>
+                            <button className="p-1.5 text-amber-500 hover:text-amber-600 transition-colors" title="Continue">
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                          </Link>
+                        ) : isCompleted ? (
+                          <Link href={`/feedback/${conv.id}`}>
+                            <button className="p-1.5 text-muted-foreground hover:text-primary transition-colors" title="View feedback">
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                          </Link>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
