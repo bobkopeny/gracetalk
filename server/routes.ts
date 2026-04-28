@@ -829,12 +829,16 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
     ]);
     const personaAttempts = allProgress.find(p => p.personaId === persona.id)?.attempts ?? 0;
 
+    // Inject character name as the first system message so the agent always uses the right name
+    const charName = getCharacterName(persona.name, persona.gender);
+    const nameInstruction = { role: "system", content: `IMPORTANT: Your name is ${charName}. Always introduce yourself as ${charName}. Never refer to yourself by your persona type label ("${persona.name}"). Your name is ${charName}.` };
+
     // Only include past conversation memory when RESUMING (conversation already has messages).
     // For brand new conversations, always start completely fresh — no memory injected.
-    let messageHistory: { role: string; content: string }[] = [];
+    let messageHistory: { role: string; content: string }[] = [nameInstruction];
     if (recentMessages.length > 0) {
       // Resuming an in-progress conversation — include its messages only
-      messageHistory = recentMessages.slice(-30).map(m => ({ role: m.role, content: m.content }));
+      messageHistory = [nameInstruction, ...recentMessages.slice(-30).map(m => ({ role: m.role, content: m.content }))];
     }
 
     const personaDifficulty = (persona.difficulty ?? 3) as 1 | 2 | 3 | 4 | 5;
