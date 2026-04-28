@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useLocation } from "wouter";
-import { useConversation, useGenerateFeedback, useSendMessage, useCreateConversation } from "@/hooks/use-conversations";
+import { useConversation, useGenerateFeedback, useSendMessage } from "@/hooks/use-conversations";
 import { usePersona } from "@/hooks/use-personas";
 import { Navigation } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,6 @@ export default function ChatSession() {
   const { data: persona } = usePersona(conversation?.personaId || 0);
   const generateFeedback = useGenerateFeedback();
   const sendMessage = useSendMessage();
-  const createConversation = useCreateConversation();
 
   const startCallRef = useRef<(() => void) | null>(null);
   const [callActive, setCallActive] = useState(false);
@@ -121,14 +120,12 @@ export default function ChatSession() {
               View Feedback
             </Button>
           </Link>
-          <Button
-            className="gap-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white"
-            disabled={createConversation.isPending}
-            onClick={() => createConversation.mutate(conversation.personaId, { onSuccess: (d) => setLocation(`/chat/${d.id}`) })}
-          >
-            {createConversation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            Start Fresh
-          </Button>
+          <Link href="/personas">
+            <Button className="gap-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white">
+              <RefreshCw className="w-4 h-4" />
+              Start Fresh
+            </Button>
+          </Link>
         </div>
 
         {/* Read-only chat history */}

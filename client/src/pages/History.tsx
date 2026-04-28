@@ -1,16 +1,14 @@
-import { useConversations, useCreateConversation } from "@/hooks/use-conversations";
+import { useConversations } from "@/hooks/use-conversations";
 import { Navigation, MobileHeader, MobileNav } from "@/components/Navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, Calendar, MessageSquare, ArrowRight, BarChart2, CheckCircle2, PlayCircle, RefreshCw } from "lucide-react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
 export default function History() {
   const { data: conversations, isLoading } = useConversations();
-  const createConversation = useCreateConversation();
-  const [, setLocation] = useLocation();
 
   return (
     <div className="min-h-screen bg-muted/20 pb-20 md:pb-0">
@@ -98,16 +96,12 @@ export default function History() {
                                 <ArrowRight className="w-4 h-4" />
                               </Button>
                             </Link>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-1.5 rounded-xl w-full sm:w-auto text-xs"
-                              disabled={createConversation.isPending}
-                              onClick={() => createConversation.mutate(conv.personaId, { onSuccess: (d) => setLocation(`/chat/${d.id}`) })}
-                            >
-                              <RefreshCw className="w-3 h-3" />
-                              Start Fresh
-                            </Button>
+                            <Link href="/personas">
+                              <Button variant="outline" size="sm" className="gap-1.5 rounded-xl w-full sm:w-auto text-xs">
+                                <RefreshCw className="w-3 h-3" />
+                                Start Fresh
+                              </Button>
+                            </Link>
                           </>
                         ) : (
                           <>
@@ -117,16 +111,12 @@ export default function History() {
                                 Review
                               </Button>
                             </Link>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="gap-1.5 rounded-xl w-full sm:w-auto text-xs text-teal-600"
-                              disabled={createConversation.isPending}
-                              onClick={() => createConversation.mutate(conv.personaId, { onSuccess: (d) => setLocation(`/chat/${d.id}`) })}
-                            >
-                              <RefreshCw className="w-3 h-3" />
-                              Try Again
-                            </Button>
+                            <Link href="/personas">
+                              <Button variant="ghost" size="sm" className="gap-1.5 rounded-xl w-full sm:w-auto text-xs text-teal-600">
+                                <RefreshCw className="w-3 h-3" />
+                                Try Again
+                              </Button>
+                            </Link>
                           </>
                         )}
                       </div>
