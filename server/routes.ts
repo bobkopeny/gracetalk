@@ -22,6 +22,7 @@ const CHARACTER_NAMES: Record<string, string> = {
   "Hurt by the Church": "Rachel",
   "The Skeptical Atheist": "Marcus",
   "Doubting Thomas": "Vale",
+  "Pete": "Pete",
 };
 
 function getCharacterName(personaName: string, gender?: string | null): string {
