@@ -8,6 +8,7 @@ import { useLocation, Link } from "wouter";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import type { Persona } from "@shared/models/persona";
 
 export default function Dashboard() {
@@ -18,6 +19,7 @@ export default function Dashboard() {
   const createConversation = useCreateConversation();
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const progressMap = Object.fromEntries((progress ?? []).map(p => [p.personaId, p]));
 
@@ -42,6 +44,7 @@ export default function Dashboard() {
       if (!res.ok) throw new Error("Failed to delete");
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/conversations"] }),
+    onError: () => toast({ title: "Could not delete conversation", variant: "destructive" }),
   });
 
   const handleStartPracticing = () => {
@@ -164,9 +167,16 @@ export default function Dashboard() {
           <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
             <div className="p-4 flex items-center justify-between border-b border-border">
               <h2 className="font-bold text-foreground">Recent Conversations</h2>
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                {conversations?.length ?? 0} Sessions
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  {conversations?.length ?? 0} Sessions
+                </span>
+                {(conversations?.length ?? 0) > 0 && (
+                  <Link href="/history" className="text-xs font-semibold text-primary hover:underline">
+                    View all
+                  </Link>
+                )}
+              </div>
             </div>
 
             {conversationsLoading ? (
