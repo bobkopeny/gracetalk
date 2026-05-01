@@ -18,6 +18,7 @@ import History from "@/pages/History";
 import Training from "@/pages/Training";
 import MyStats from "@/pages/MyStats";
 import AdminDashboard from "@/pages/AdminDashboard";
+import TranscriptPage from "@/pages/TranscriptPage";
 import NotFound from "@/pages/not-found";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -61,6 +62,9 @@ function Router() {
       </Route>
       <Route path="/feedback/:id">
         <ProtectedRoute component={FeedbackPage} />
+      </Route>
+      <Route path="/transcript/:id">
+        <ProtectedRoute component={TranscriptPage} />
       </Route>
       <Route path="/training">
         <ProtectedRoute component={Training} />

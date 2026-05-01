@@ -2,7 +2,7 @@ import { useConversations } from "@/hooks/use-conversations";
 import { Navigation, MobileHeader, MobileNav } from "@/components/Navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Calendar, MessageSquare, ArrowRight, BarChart2, CheckCircle2, PlayCircle, RefreshCw } from "lucide-react";
+import { Loader2, Calendar, MessageSquare, ArrowRight, BarChart2, CheckCircle2, PlayCircle, RefreshCw, ScrollText } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -96,10 +96,10 @@ export default function History() {
                                 <ArrowRight className="w-4 h-4" />
                               </Button>
                             </Link>
-                            <Link href="/personas">
+                            <Link href={`/transcript/${conv.id}`}>
                               <Button variant="outline" size="sm" className="gap-1.5 rounded-xl w-full sm:w-auto text-xs">
-                                <RefreshCw className="w-3 h-3" />
-                                Start Fresh
+                                <ScrollText className="w-3 h-3" />
+                                Transcript
                               </Button>
                             </Link>
                           </>
@@ -111,10 +111,10 @@ export default function History() {
                                 Review
                               </Button>
                             </Link>
-                            <Link href="/personas">
-                              <Button variant="ghost" size="sm" className="gap-1.5 rounded-xl w-full sm:w-auto text-xs text-teal-600">
-                                <RefreshCw className="w-3 h-3" />
-                                Try Again
+                            <Link href={`/transcript/${conv.id}`}>
+                              <Button variant="ghost" size="sm" className="gap-1.5 rounded-xl w-full sm:w-auto text-xs">
+                                <ScrollText className="w-3 h-3" />
+                                Transcript
                               </Button>
                             </Link>
                           </>
