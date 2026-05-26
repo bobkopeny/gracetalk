@@ -143,12 +143,7 @@ class WitnessPersona(Agent):
         """Called after the user finishes speaking — save their transcript."""
         text = new_message.text_content
         logger.info("on_user_turn_completed: conv=%s text=%r", self._conversation_id, text)
-        if not text:
-            return
-        if text == self._last_saved_user:
-            logger.info("Skipping duplicate user message: %r", text)
-            return
-        if self._conversation_id:
+        if self._conversation_id and text:
             save_message_to_app(self._conversation_id, "user", text)
         self._last_saved_user = text
 
@@ -158,13 +153,7 @@ class WitnessPersona(Agent):
         """Called after the agent finishes speaking — save its transcript."""
         text = new_message.text_content
         logger.info("on_agent_turn_completed: conv=%s text=%r", self._conversation_id, text)
-        if not text:
-            return
-        # Guard against the framework calling this twice for the same response.
-        if text == self._last_saved_assistant:
-            logger.info("Skipping duplicate assistant message: %r", text)
-            return
-        if self._conversation_id:
+        if self._conversation_id and text:
             save_message_to_app(self._conversation_id, "assistant", text)
         self._last_saved_assistant = text
 
