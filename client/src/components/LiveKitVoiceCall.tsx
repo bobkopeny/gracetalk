@@ -37,17 +37,42 @@ function VoiceSession({
   const [hint, setHint] = useState<string | null>(null);
   const [hintLoading, setHintLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  // Track which DB message IDs we've already added so we never show a duplicate.
-  const seenDbIds = useRef<Set<number>>(new Set());
 
-  // Poll the DB every 1.5 s — this is the ONLY source of transcript text.
-  // We no longer use the transcriptionReceived LiveKit event because xAI sends
-  // a new segment ID for every interim word, making it impossible to reliably
-  // collapse updates without race conditions that produce duplicate bubbles.
-  // Instead, the LiveKit `state` drives a typing indicator while turns are live.
+  // transcriptionReceived: primary real-time transcript source.
+  // We use fixed IDs "interim-user" / "interim-assistant" so there is always
+  // at most ONE in-progress bubble per role — xAI's many segment IDs all
+  // collapse into the same slot via findIndex on the fixed ID.
+  useEffect(() => {
+    const handleTranscription = (segs: any[], participant: any) => {
+      const isLocal = participant?.identity === room.localParticipant?.identity;
+      const role: "user" | "assistant" = isLocal ? "user" : "assistant";
+      // Use the last (most complete) text from this batch
+      const latestText = [...segs].reverse().find((s) => s.text)?.text;
+      if (!latestText) return;
+      const interimId = `interim-${role}`;
+      setSegments((prev) => {
+        const updated = [...prev];
+        const idx = updated.findIndex((s) => s.id === interimId);
+        if (idx >= 0) {
+          updated[idx] = { id: interimId, role, text: latestText };
+        } else {
+          // Only add if no DB-confirmed bubble already exists for this role
+          // at the tail (i.e. the turn hasn't been confirmed yet)
+          updated.push({ id: interimId, role, text: latestText });
+        }
+        return updated;
+      });
+    };
+    room.on("transcriptionReceived", handleTranscription);
+    return () => { room.off("transcriptionReceived", handleTranscription); };
+  }, [room]);
+
+  // DB poll: authoritative source. When a message is confirmed in the DB,
+  // replace the interim-{role} bubble (if present) with the final text,
+  // or add it if there was no interim bubble.
   useEffect(() => {
     if (!conversationId) return;
-    seenDbIds.current = new Set(); // reset on conversationId change
+    const seenIds = new Set<number>();
 
     const poll = async () => {
       try {
@@ -55,27 +80,25 @@ function VoiceSession({
         if (!res.ok) return;
         const data = await res.json();
         const msgs: Array<{ id: number; role: string; content: string }> = data.messages ?? [];
-        const newMsgs = msgs.filter((m) => !seenDbIds.current.has(m.id));
+        const newMsgs = msgs.filter((m) => !seenIds.has(m.id));
         if (newMsgs.length === 0) return;
-        newMsgs.forEach((m) => seenDbIds.current.add(m.id));
+        newMsgs.forEach((m) => seenIds.add(m.id));
         setSegments((prev) => {
-          const updated = [...prev];
+          let updated = [...prev];
           for (const msg of newMsgs) {
             const role: "user" | "assistant" = msg.role === "user" ? "user" : "assistant";
             const syntheticId = `db-${msg.id}`;
-            // Guard: never add the same DB entry twice (even across StrictMode remounts)
             if (updated.some((s) => s.id === syntheticId)) continue;
-            // If the last segment is the same role, merge this message into it.
-            // xAI VAD can split one utterance into multiple DB entries — merging
-            // them produces one clean bubble instead of duplicates on screen.
-            const last = updated[updated.length - 1];
-            if (last && last.role === role) {
-              updated[updated.length - 1] = {
-                ...last,
-                text: last.text + " " + msg.content,
-              };
+            // Replace interim bubble if present, otherwise append
+            const interimIdx = updated.findIndex((s) => s.id === `interim-${role}`);
+            if (interimIdx >= 0) {
+              updated[interimIdx] = { id: syntheticId, role, text: msg.content };
             } else {
-              updated.push({ id: syntheticId, role, text: msg.content });
+              // No interim bubble — only add if not a content duplicate
+              const norm = (t: string) => t.toLowerCase().replace(/[^\w ]/g, "").trim();
+              if (!updated.some((s) => s.role === role && norm(s.text) === norm(msg.content))) {
+                updated.push({ id: syntheticId, role, text: msg.content });
+              }
             }
           }
           return updated;
@@ -83,8 +106,7 @@ function VoiceSession({
       } catch {}
     };
 
-    const interval = setInterval(poll, 1500);
-    poll(); // run immediately on mount so existing messages show right away
+    const interval = setInterval(poll, 2000);
     return () => clearInterval(interval);
   }, [conversationId]);
 
