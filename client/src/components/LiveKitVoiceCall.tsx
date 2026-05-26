@@ -65,7 +65,18 @@ function VoiceSession({
             const syntheticId = `db-${msg.id}`;
             // Guard: never add the same DB entry twice (even across StrictMode remounts)
             if (updated.some((s) => s.id === syntheticId)) continue;
-            updated.push({ id: syntheticId, role, text: msg.content });
+            // If the last segment is the same role, merge this message into it.
+            // xAI VAD can split one utterance into multiple DB entries — merging
+            // them produces one clean bubble instead of duplicates on screen.
+            const last = updated[updated.length - 1];
+            if (last && last.role === role) {
+              updated[updated.length - 1] = {
+                ...last,
+                text: last.text + " " + msg.content,
+              };
+            } else {
+              updated.push({ id: syntheticId, role, text: msg.content });
+            }
           }
           return updated;
         });
