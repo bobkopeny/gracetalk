@@ -38,38 +38,10 @@ function VoiceSession({
   const [hintLoading, setHintLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // transcriptionReceived: primary real-time transcript source.
-  // We use fixed IDs "interim-user" / "interim-assistant" so there is always
-  // at most ONE in-progress bubble per role — xAI's many segment IDs all
-  // collapse into the same slot via findIndex on the fixed ID.
-  useEffect(() => {
-    const handleTranscription = (segs: any[], participant: any) => {
-      const isLocal = participant?.identity === room.localParticipant?.identity;
-      const role: "user" | "assistant" = isLocal ? "user" : "assistant";
-      // Use the last (most complete) text from this batch
-      const latestText = [...segs].reverse().find((s) => s.text)?.text;
-      if (!latestText) return;
-      const interimId = `interim-${role}`;
-      setSegments((prev) => {
-        const updated = [...prev];
-        const idx = updated.findIndex((s) => s.id === interimId);
-        if (idx >= 0) {
-          updated[idx] = { id: interimId, role, text: latestText };
-        } else {
-          // Only add if no DB-confirmed bubble already exists for this role
-          // at the tail (i.e. the turn hasn't been confirmed yet)
-          updated.push({ id: interimId, role, text: latestText });
-        }
-        return updated;
-      });
-    };
-    room.on("transcriptionReceived", handleTranscription);
-    return () => { room.off("transcriptionReceived", handleTranscription); };
-  }, [room]);
-
-  // DB poll: authoritative source. When a message is confirmed in the DB,
-  // replace the interim-{role} bubble (if present) with the final text,
-  // or add it if there was no interim bubble.
+  // DB poll: authoritative source. Transcript appears ~1s after each utterance.
+  // We deliberately avoid transcriptionReceived events here — they fire dozens
+  // of times per second (one per word from xAI), causing React re-renders that
+  // congest the main thread and cause WebRTC audio buffer underruns.
   useEffect(() => {
     if (!conversationId) return;
     const seenIds = new Set<number>();
@@ -89,17 +61,7 @@ function VoiceSession({
             const role: "user" | "assistant" = msg.role === "user" ? "user" : "assistant";
             const syntheticId = `db-${msg.id}`;
             if (updated.some((s) => s.id === syntheticId)) continue;
-            // Replace interim bubble if present, otherwise append
-            const interimIdx = updated.findIndex((s) => s.id === `interim-${role}`);
-            if (interimIdx >= 0) {
-              updated[interimIdx] = { id: syntheticId, role, text: msg.content };
-            } else {
-              // No interim bubble — only add if not a content duplicate
-              const norm = (t: string) => t.toLowerCase().replace(/[^\w ]/g, "").trim();
-              if (!updated.some((s) => s.role === role && norm(s.text) === norm(msg.content))) {
-                updated.push({ id: syntheticId, role, text: msg.content });
-              }
-            }
+            updated.push({ id: syntheticId, role, text: msg.content });
           }
           return updated;
         });
