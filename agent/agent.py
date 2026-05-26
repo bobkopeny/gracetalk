@@ -135,12 +135,6 @@ class WitnessPersona(Agent):
         self._conversation_id = conversation_id
         self._last_saved_user: str | None = None
         self._last_saved_assistant: str | None = None
-        # xAI's VAD can fire on_user_turn_completed multiple times for a single
-        # utterance (one per VAD segment). We gate user saves on whether the agent
-        # has spoken since the last save: if it hasn't, the new call is a
-        # continuation of the same utterance and should be skipped.
-        # Starts True so the very first user turn is always saved.
-        self._agent_has_responded: bool = True
         logger.info("WitnessPersona created: %s (conv=%s)", persona_name, conversation_id)
 
     async def on_user_turn_completed(
@@ -148,15 +142,8 @@ class WitnessPersona(Agent):
     ) -> None:
         """Called after the user finishes speaking — save their transcript."""
         text = new_message.text_content
-        logger.info("on_user_turn_completed: conv=%s text=%r agent_has_responded=%s",
-                    self._conversation_id, text, self._agent_has_responded)
+        logger.info("on_user_turn_completed: conv=%s text=%r", self._conversation_id, text)
         if not text:
-            return
-        # If the agent hasn't spoken since the last user save, this call is a
-        # VAD over-segmentation artifact (xAI split one utterance into multiple
-        # segments). Skip it — only save the first segment of each user turn.
-        if not self._agent_has_responded:
-            logger.info("Skipping VAD segment (agent hasn't responded yet): %r", text)
             return
         if text == self._last_saved_user:
             logger.info("Skipping duplicate user message: %r", text)
@@ -164,7 +151,6 @@ class WitnessPersona(Agent):
         if self._conversation_id:
             save_message_to_app(self._conversation_id, "user", text)
         self._last_saved_user = text
-        self._agent_has_responded = False  # block further saves until agent responds
 
     async def on_agent_turn_completed(
         self, turn_ctx: agent_llm.ChatContext, new_message: agent_llm.ChatMessage
@@ -181,8 +167,6 @@ class WitnessPersona(Agent):
         if self._conversation_id:
             save_message_to_app(self._conversation_id, "assistant", text)
         self._last_saved_assistant = text
-        # Agent has spoken — next on_user_turn_completed is a new utterance
-        self._agent_has_responded = True
 
 
 async def entrypoint(ctx: JobContext) -> None:
