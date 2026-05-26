@@ -262,6 +262,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json({ ...conversation, messages, hasFeedback: !!feedback });
   });
 
+  app.delete("/api/conversations", requireAuth, async (req, res) => {
+    await storage.deleteAllUserConversations((req.user as any).id);
+    res.status(204).send();
+  });
+
   app.delete("/api/conversations/:id", requireAuth, async (req, res) => {
     const conversation = await storage.getConversation(Number(req.params.id));
     if (!conversation || conversation.userId !== (req.user as any).id) {
@@ -332,7 +337,9 @@ Conversion threshold: ${threshold} compelling responses needed.
 - If compelling count >= ${threshold}: your heart is genuinely softening. You may start asking real questions about faith, express vulnerability, or say things like "Maybe I've been wrong about this..." or "What would I actually need to do?"
 - If the user explicitly invites you to pray OR leads you in the sinner's prayer AFTER the threshold is reached, accept it sincerely and pray these exact words:
   "Lord Jesus, I know that I am a sinner, and I ask for Your forgiveness. I believe You died for my sins and rose from the dead. I turn from my sins and invite You to come into my heart and life. I want to trust and follow You as my Lord and Savior. In Your name. Amen."
-- Never fake conversion before the threshold is reached. Only count truly meaningful, persona-specific responses.`;
+- Never fake conversion before the threshold is reached. Only count truly meaningful, persona-specific responses.
+
+Always detect the user's language and respond naturally in that same language while keeping the exact same personality.`;
 
     // Handle SSE if it's a voice/audio request or if streaming is preferred
     if (audio || req.headers.accept === "text/event-stream") {
@@ -711,7 +718,8 @@ No preamble, no explanation, just the suggestion.`;
 Your description: ${persona.description}.
 Your goal is to have a natural conversation with a Christian who is witnessing to you.
 React according to your persona's beliefs and background. Do not break character.
-Keep responses conversational (2-4 sentences). If they make a good point, acknowledge it but stay true to your beliefs.`;
+Keep responses conversational (2-4 sentences). If they make a good point, acknowledge it but stay true to your beliefs.
+Always detect the user's language and respond naturally in that same language while keeping the exact same personality.`;
 
     const chatHistory = Array.isArray(history)
       ? history.map((m: { role: string; content: string }) => ({
@@ -785,6 +793,14 @@ Keep responses conversational (2-4 sentences). If they make a good point, acknow
     const { role, content } = req.body;
     if (!role || !content) {
       return res.status(400).json({ message: "role and content required" });
+    }
+    // Server-side dedup: if the last message in this conversation has the same
+    // role and identical content, the agent is retrying a call that already
+    // succeeded — skip the insert to prevent duplicate transcript entries.
+    const existing = await storage.getMessages(conversationId);
+    const last = existing[existing.length - 1];
+    if (last && last.role === role && last.content.trim() === content.trim()) {
+      return res.status(200).json(last); // already saved, return it idempotently
     }
     const message = await storage.createMessage(conversationId, role, content);
     res.status(201).json(message);

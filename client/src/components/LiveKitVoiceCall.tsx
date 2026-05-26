@@ -37,20 +37,45 @@ function VoiceSession({
   const [hint, setHint] = useState<string | null>(null);
   const [hintLoading, setHintLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Tracks the ID of the currently "in-progress" (non-final) segment per role.
+  // xAI's LiveKit integration sends a NEW segment ID for every interim transcription
+  // update rather than reusing the same ID, so we collapse them into one bubble.
+  const activeSegRef = useRef<Partial<Record<"user" | "assistant", string>>>({});
+  // After the DB confirms a turn, lock that role briefly so late-arriving
+  // transcriptionReceived events from the same xAI utterance can't create new bubbles.
+  const turnLockExpiry = useRef<Partial<Record<"user" | "assistant", number>>>({});
 
   // Listen for native LiveKit transcription events (may not fire with xAI realtime)
   useEffect(() => {
     const handleTranscription = (segs: any[], participant: any) => {
       const isLocal = participant?.identity === room.localParticipant?.identity;
       const role: "user" | "assistant" = isLocal ? "user" : "assistant";
+      // If this role is locked (DB just confirmed its last turn), ignore late
+      // interim events from the same xAI utterance to prevent phantom bubbles.
+      const lock = turnLockExpiry.current[role];
+      if (lock && Date.now() < lock) return;
       setSegments((prev) => {
         const updated = [...prev];
         for (const seg of segs) {
-          const idx = updated.findIndex((s) => s.id === seg.id);
-          if (idx >= 0) {
-            updated[idx] = { id: seg.id, role, text: seg.text };
+          const existingIdx = updated.findIndex((s) => s.id === seg.id);
+          if (existingIdx >= 0) {
+            // Known ID — update text in-place, keep activeRef pointing here
+            updated[existingIdx] = { id: seg.id, role, text: seg.text };
           } else {
-            updated.push({ id: seg.id, role, text: seg.text });
+            // New segment ID — overwrite the active bubble if one exists,
+            // otherwise start a fresh bubble.
+            // We do NOT rely on seg.final to decide: xAI may mark every
+            // interim segment as final, which would defeat that check.
+            // The DB poll is the authoritative signal that a turn is done.
+            const activeId = activeSegRef.current[role];
+            const activeIdx = activeId ? updated.findIndex((s) => s.id === activeId) : -1;
+            if (activeIdx >= 0) {
+              updated[activeIdx] = { id: seg.id, role, text: seg.text };
+            } else {
+              updated.push({ id: seg.id, role, text: seg.text });
+            }
+            // Always track the latest ID so the next interim update finds it
+            activeSegRef.current[role] = seg.id;
           }
         }
         return updated;
@@ -63,7 +88,10 @@ function VoiceSession({
     };
   }, [room]);
 
-  // Fallback: poll DB for messages saved by the agent (xAI plugin doesn't forward transcription events)
+  // Fallback: poll DB for messages saved by the agent (xAI plugin doesn't forward transcription events).
+  // The DB poll is also the authoritative "turn complete" signal: when a message lands in the DB
+  // we replace whatever interim bubble exists for that role with the final saved text, then clear
+  // activeSegRef so the next utterance starts a brand-new bubble.
   useEffect(() => {
     if (!conversationId) return;
     const seenIds = new Set<number>();
@@ -82,9 +110,39 @@ function VoiceSession({
           for (const msg of newMsgs) {
             const role: "user" | "assistant" = msg.role === "user" ? "user" : "assistant";
             const syntheticId = `db-${msg.id}`;
-            if (!updated.find((s) => s.id === syntheticId)) {
-              updated.push({ id: syntheticId, role, text: msg.content });
+
+            // Already stored by ID — skip
+            if (updated.find((s) => s.id === syntheticId)) continue;
+
+            // If there is an active interim bubble for this role, replace it
+            // with the authoritative DB text and close the turn.
+            const activeId = activeSegRef.current[role];
+            const activeIdx = activeId ? updated.findIndex((s) => s.id === activeId) : -1;
+            if (activeIdx >= 0) {
+              updated[activeIdx] = { id: syntheticId, role, text: msg.content };
+            } else {
+              // No interim bubble — remove any stale non-db interim for this role,
+              // then add the confirmed DB message (skip if content already shown).
+              const normalize = (t: string) =>
+                t.toLowerCase().replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim();
+              const duplicate = updated.find(
+                (s) =>
+                  s.role === role &&
+                  (s.id === syntheticId ||
+                    normalize(s.text) === normalize(msg.content))
+              );
+              if (!duplicate) {
+                // Remove any orphaned non-db interim bubble for this role before adding DB version
+                const orphanIdx = updated.findIndex(
+                  (s) => s.role === role && !s.id.startsWith("db-")
+                );
+                if (orphanIdx >= 0) updated.splice(orphanIdx, 1);
+                updated.push({ id: syntheticId, role, text: msg.content });
+              }
             }
+            // Lock this role for 1.5 s so late xAI interim events don't spawn new bubbles
+            turnLockExpiry.current[role] = Date.now() + 1500;
+            delete activeSegRef.current[role]; // turn is done — next utterance gets a fresh bubble
           }
           return updated;
         });
@@ -114,12 +172,27 @@ function VoiceSession({
 
   const handleEndClick = async () => {
     if (conversationId && segments.length > 0) {
-      fetch(`/api/conversations/${conversationId}/voice-transcript`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ segments: segments.map(s => ({ role: s.role, text: s.text })) }),
-      }).catch(() => {});
+      // Only send segments NOT already in the DB (db-* ids are already saved).
+      // Of the remaining interim segments, keep only the last one per role —
+      // that's the most complete version. Earlier partial bubbles ("Yeah.",
+      // "Yeah, I wanna") should never reach the DB as separate messages.
+      const fallbackByRole = new Map<string, string>();
+      for (const seg of segments) {
+        if (!seg.id.startsWith("db-")) {
+          fallbackByRole.set(seg.role, seg.text); // last one per role wins
+        }
+      }
+      const fallbackSegments = Array.from(fallbackByRole.entries()).map(
+        ([role, text]) => ({ role, text })
+      );
+      if (fallbackSegments.length > 0) {
+        fetch(`/api/conversations/${conversationId}/voice-transcript`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ segments: fallbackSegments }),
+        }).catch(() => {});
+      }
     }
     await room.disconnect();
     onEnd();
