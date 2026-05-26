@@ -106,7 +106,8 @@ function VoiceSession({
       } catch {}
     };
 
-    const interval = setInterval(poll, 2000);
+    poll(); // run immediately on mount
+    const interval = setInterval(poll, 1000);
     return () => clearInterval(interval);
   }, [conversationId]);
 
