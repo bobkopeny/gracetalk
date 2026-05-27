@@ -37,21 +37,18 @@ function VoiceSession({
   const [hint, setHint] = useState<string | null>(null);
   const [hintLoading, setHintLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  // Tracks last render time per role for throttling transcriptionReceived
-  const lastInterimRef = useRef<{ user: number; assistant: number }>({ user: 0, assistant: 0 });
 
   // transcriptionReceived: real-time transcript source.
-  // Throttled to one update per 400ms per role — keeps transcript live without
-  // the per-word re-render storm that was causing audio buffer underruns.
+  // We use fixed IDs "interim-user" / "interim-assistant" so there is always
+  // at most ONE in-progress bubble per role, regardless of how many segment
+  // IDs xAI sends (it sends a new ID for every interim word update).
   useEffect(() => {
     const handleTranscription = (segs: any[], participant: any) => {
       const isLocal = participant?.identity === room.localParticipant?.identity;
       const role: "user" | "assistant" = isLocal ? "user" : "assistant";
+      // Use the last (most complete) text from this batch
       const latestText = [...segs].reverse().find((s) => s.text)?.text;
       if (!latestText) return;
-      const now = Date.now();
-      if (now - lastInterimRef.current[role] < 400) return; // throttle
-      lastInterimRef.current[role] = now;
       const interimId = `interim-${role}`;
       setSegments((prev) => {
         const updated = [...prev];
@@ -68,8 +65,9 @@ function VoiceSession({
     return () => { room.off("transcriptionReceived", handleTranscription); };
   }, [room]);
 
-  // DB poll: authoritative confirmation. Replaces interim bubbles with
-  // DB-confirmed text (final, permanent IDs) once the agent saves them.
+  // DB poll: authoritative source. When a message is confirmed in the DB,
+  // replace the interim-{role} bubble with the final text (permanent db-* id),
+  // then the next utterance will create a fresh interim bubble.
   useEffect(() => {
     if (!conversationId) return;
     const seenIds = new Set<number>();
@@ -89,13 +87,18 @@ function VoiceSession({
             const role: "user" | "assistant" = msg.role === "user" ? "user" : "assistant";
             const syntheticId = `db-${msg.id}`;
             if (updated.some((s) => s.id === syntheticId)) continue;
-            // Replace interim bubble if present, otherwise append (dedup by content)
+            // Replace the interim bubble for this role if it exists
             const interimIdx = updated.findIndex((s) => s.id === `interim-${role}`);
             if (interimIdx >= 0) {
               updated[interimIdx] = { id: syntheticId, role, text: msg.content };
             } else {
-              const norm = (t: string) => t.toLowerCase().replace(/[^\w ]/g, "").trim();
-              if (!updated.some((s) => s.role === role && norm(s.text) === norm(msg.content))) {
+              // No interim bubble — add only if not a content duplicate
+              const norm = (t: string) =>
+                t.toLowerCase().replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim();
+              const duplicate = updated.find(
+                (s) => s.role === role && norm(s.text) === norm(msg.content)
+              );
+              if (!duplicate) {
                 updated.push({ id: syntheticId, role, text: msg.content });
               }
             }
@@ -105,8 +108,7 @@ function VoiceSession({
       } catch {}
     };
 
-    poll(); // run immediately on mount
-    const interval = setInterval(poll, 1000);
+    const interval = setInterval(poll, 2500);
     return () => clearInterval(interval);
   }, [conversationId]);
 
@@ -128,7 +130,6 @@ function VoiceSession({
   };
 
   const handleEndClick = async () => {
-    // All transcript text comes from the DB poll now — no local-only segments to flush.
     await room.disconnect();
     onEnd();
   };
@@ -189,7 +190,7 @@ function VoiceSession({
 
       {/* Transcript area */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4" ref={scrollRef}>
-        {segments.length === 0 && state !== "listening" && (
+        {segments.length === 0 && (
           <div className="flex items-center justify-center h-full">
             <p className="text-sm text-muted-foreground">Speak naturally to begin...</p>
           </div>
@@ -226,7 +227,7 @@ function VoiceSession({
           );
         })}
 
-        {/* Typing indicators — shown while a turn is in progress, disappear when DB confirms */}
+        {/* Typing indicators */}
         {state === "listening" && (
           <div className="flex w-full max-w-3xl mx-auto justify-end">
             <div className="rounded-2xl rounded-tr-sm px-4 py-3 bg-primary/20 text-xs text-primary italic">
@@ -404,7 +405,6 @@ export function LiveKitVoiceCall({
     onActiveChange?.(false);
 
     if (switchingToTypeRef.current) {
-      // UI already switched — just schedule a transcript refresh
       switchingToTypeRef.current = false;
       setTimeout(() => onTranscriptsUpdated?.(), 1500);
     } else if (onCallEnded) {
