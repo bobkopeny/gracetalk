@@ -37,11 +37,39 @@ function VoiceSession({
   const [hint, setHint] = useState<string | null>(null);
   const [hintLoading, setHintLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Tracks last render time per role for throttling transcriptionReceived
+  const lastInterimRef = useRef<{ user: number; assistant: number }>({ user: 0, assistant: 0 });
 
-  // DB poll: authoritative source. Transcript appears ~1s after each utterance.
-  // We deliberately avoid transcriptionReceived events here — they fire dozens
-  // of times per second (one per word from xAI), causing React re-renders that
-  // congest the main thread and cause WebRTC audio buffer underruns.
+  // transcriptionReceived: real-time transcript source.
+  // Throttled to one update per 400ms per role — keeps transcript live without
+  // the per-word re-render storm that was causing audio buffer underruns.
+  useEffect(() => {
+    const handleTranscription = (segs: any[], participant: any) => {
+      const isLocal = participant?.identity === room.localParticipant?.identity;
+      const role: "user" | "assistant" = isLocal ? "user" : "assistant";
+      const latestText = [...segs].reverse().find((s) => s.text)?.text;
+      if (!latestText) return;
+      const now = Date.now();
+      if (now - lastInterimRef.current[role] < 400) return; // throttle
+      lastInterimRef.current[role] = now;
+      const interimId = `interim-${role}`;
+      setSegments((prev) => {
+        const updated = [...prev];
+        const idx = updated.findIndex((s) => s.id === interimId);
+        if (idx >= 0) {
+          updated[idx] = { id: interimId, role, text: latestText };
+        } else {
+          updated.push({ id: interimId, role, text: latestText });
+        }
+        return updated;
+      });
+    };
+    room.on("transcriptionReceived", handleTranscription);
+    return () => { room.off("transcriptionReceived", handleTranscription); };
+  }, [room]);
+
+  // DB poll: authoritative confirmation. Replaces interim bubbles with
+  // DB-confirmed text (final, permanent IDs) once the agent saves them.
   useEffect(() => {
     if (!conversationId) return;
     const seenIds = new Set<number>();
@@ -61,7 +89,16 @@ function VoiceSession({
             const role: "user" | "assistant" = msg.role === "user" ? "user" : "assistant";
             const syntheticId = `db-${msg.id}`;
             if (updated.some((s) => s.id === syntheticId)) continue;
-            updated.push({ id: syntheticId, role, text: msg.content });
+            // Replace interim bubble if present, otherwise append (dedup by content)
+            const interimIdx = updated.findIndex((s) => s.id === `interim-${role}`);
+            if (interimIdx >= 0) {
+              updated[interimIdx] = { id: syntheticId, role, text: msg.content };
+            } else {
+              const norm = (t: string) => t.toLowerCase().replace(/[^\w ]/g, "").trim();
+              if (!updated.some((s) => s.role === role && norm(s.text) === norm(msg.content))) {
+                updated.push({ id: syntheticId, role, text: msg.content });
+              }
+            }
           }
           return updated;
         });
