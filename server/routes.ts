@@ -641,6 +641,14 @@ No preamble, no explanation, just the suggestion.`;
       ...(voice && { voice }),
       ...(gender && { gender }),
     });
+    // Cascade voice + gender to every user's copy of this persona (same name)
+    // so all users immediately hear the updated voice on their next call.
+    if (voice || gender) {
+      await storage.cascadeVoiceByName(updated.name, {
+        ...(voice && { voice }),
+        ...(gender && { gender }),
+      });
+    }
     res.json(updated);
   });
 

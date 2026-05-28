@@ -97,24 +97,6 @@ export async function runMigrations() {
     console.error("[db] Migration warning (non-fatal):", err?.message);
   }
 
-  try {
-    await db.execute(sql`
-      UPDATE personas SET voice = 'Eve', gender = 'female'
-      WHERE name = 'Hurt by the Church' AND (voice != 'Eve' OR gender != 'female')
-    `);
-    console.log("[db] Migration: Hurt by the Church voice/gender corrected to Eve/female");
-  } catch (err: any) {
-    console.error("[db] Migration warning (non-fatal):", err?.message);
-  }
-
-  try {
-    // Fix gender for any persona using a male voice but stored as female
-    await db.execute(sql`
-      UPDATE personas SET gender = 'male'
-      WHERE voice IN ('Rex', 'Leo', 'Orion', 'Vale') AND gender != 'male'
-    `);
-    console.log("[db] Migration: fixed gender=male for personas with male voices");
-  } catch (err: any) {
-    console.error("[db] Migration warning (non-fatal):", err?.message);
-  }
+  // NOTE: Removed startup voice-reset migrations — they were overriding admin
+  // voice changes on every deploy. Voice is now fully admin-controlled.
 }

@@ -1,7 +1,7 @@
 import { users, personas, conversations, messages, feedbacks, userProgress, userTestimonials } from "@shared/schema";
 import type { User, UpsertUser, Persona, InsertPersona, Conversation, Message, Feedback, UserProgress, UserTestimonial } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, asc, and, count, gte, sql, notInArray } from "drizzle-orm";
+import { eq, desc, asc, and, count, gte, sql, notInArray, inArray } from "drizzle-orm";
 
 export interface IStorage {
   // Auth
@@ -25,6 +25,7 @@ export interface IStorage {
 
   // Conversations
   deleteConversation(id: number): Promise<void>;
+  deleteAllUserConversations(userId: string): Promise<void>;
 
   // Feedback
   createFeedback(conversationId: number, content: string): Promise<Feedback>;
@@ -46,6 +47,7 @@ export interface IStorage {
 
   // Full persona update (admin)
   updatePersonaFull(id: number, data: Partial<Pick<Persona, "name" | "description" | "gender" | "voice" | "difficulty">>): Promise<Persona>;
+  cascadeVoiceByName(name: string, data: Partial<Pick<Persona, "voice" | "gender">>): Promise<void>;
 
   // Voice transcript fallback (save client segments if agent didn't)
   saveVoiceTranscriptFallback(conversationId: number, segments: Array<{ role: string; text: string }>): Promise<void>;
@@ -214,6 +216,17 @@ export class DatabaseStorage implements IStorage {
     await db.delete(conversations).where(eq(conversations.id, id));
   }
 
+  async deleteAllUserConversations(userId: string): Promise<void> {
+    const userConvIds = await db
+      .select({ id: conversations.id })
+      .from(conversations)
+      .where(eq(conversations.userId, userId));
+    const ids = userConvIds.map((c) => c.id);
+    if (ids.length === 0) return;
+    await db.delete(feedbacks).where(inArray(feedbacks.conversationId, ids));
+    await db.delete(conversations).where(eq(conversations.userId, userId));
+  }
+
   async createFeedback(conversationId: number, content: string): Promise<Feedback> {
     await db.delete(feedbacks).where(eq(feedbacks.conversationId, conversationId));
     const [feedback] = await db.insert(feedbacks).values({ conversationId, content }).returning();
@@ -314,15 +327,26 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  /** Cascade voice + gender to every persona record that shares the same name (across all users). */
+  async cascadeVoiceByName(name: string, data: Partial<Pick<Persona, "voice" | "gender">>): Promise<void> {
+    if (!data.voice && !data.gender) return;
+    await db.update(personas).set(data).where(eq(personas.name, name));
+  }
+
   async saveVoiceTranscriptFallback(conversationId: number, segments: Array<{ role: string; text: string }>): Promise<void> {
     const existing = await db.select({ content: messages.content }).from(messages).where(eq(messages.conversationId, conversationId));
     const savedContents = new Set(existing.map(m => m.content.trim()));
     for (const seg of segments) {
       const text = seg.text.trim();
-      if (text && !savedContents.has(text)) {
-        await db.insert(messages).values({ conversationId, role: seg.role === "user" ? "user" : "assistant", content: text });
-        savedContents.add(text);
-      }
+      if (!text) continue;
+      // Skip exact duplicates
+      if (savedContents.has(text)) continue;
+      // Skip partial transcripts — if any already-saved message starts with this
+      // text, it means this is an earlier interim version of something longer.
+      const isPartial = Array.from(savedContents).some(saved => saved.startsWith(text));
+      if (isPartial) continue;
+      await db.insert(messages).values({ conversationId, role: seg.role === "user" ? "user" : "assistant", content: text });
+      savedContents.add(text);
     }
   }
 
@@ -416,6 +440,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteAllConversations(): Promise<void> {
+    await db.delete(feedbacks);
     await db.delete(messages);
     await db.delete(conversations);
   }
