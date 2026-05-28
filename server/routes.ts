@@ -15,22 +15,22 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
-const CHARACTER_NAMES: Record<string, string> = {
-  "The Open Heart": "Sarah",
-  "The Spiritual Agnostic": "Jessica",
-  "The Professional": "David",
-  "Hurt by the Church": "Rachel",
-  "The Skeptical Atheist": "Marcus",
-  "Doubting Thomas": "Thomas",
-  "Pete": "Pete",
-  "Gary": "Gary",
-  "Gary Goodguy": "Gary",
+const CHARACTER_NAMES: Record<string, { female: string; male: string }> = {
+  "The Open Heart":        { female: "Sarah",   male: "Ethan"   },
+  "The Spiritual Agnostic":{ female: "Jessica", male: "Ryan"    },
+  "The Professional":      { female: "Lisa",    male: "David"   },
+  "Hurt by the Church":    { female: "Rachel",  male: "Nathan"  },
+  "The Skeptical Atheist": { female: "Emma",    male: "Marcus"  },
+  "Doubting Thomas":       { female: "Jordan",  male: "Thomas"  },
+  "Pete":                  { female: "Jordan",  male: "Pete"    },
+  "Gary":                  { female: "Jordan",  male: "Gary"    },
+  "Gary Goodguy":          { female: "Jordan",  male: "Gary"    },
 };
 
 function getCharacterName(personaName: string, gender?: string | null): string {
   // Case-insensitive lookup so "PETE", "Doubting THOMAS" etc. still match
   const key = Object.keys(CHARACTER_NAMES).find(k => k.toLowerCase() === personaName.toLowerCase());
-  if (key) return CHARACTER_NAMES[key];
+  if (key) return gender === "male" ? CHARACTER_NAMES[key].male : CHARACTER_NAMES[key].female;
   return gender === "male" ? "Alex" : "Jordan";
 }
 
