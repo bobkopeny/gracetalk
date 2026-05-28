@@ -120,14 +120,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     "The Skeptical Atheist": 5,
   };
 
-  const DEFAULT_PERSONA_VOICE_GENDER: Record<string, { voice: string; gender: string }> = {
-    "The Open Heart":       { voice: "Aria", gender: "female" },
-    "The Spiritual Agnostic": { voice: "Eve",  gender: "female" },
-    "The Professional":     { voice: "Leo",  gender: "male"   },
-    "Hurt by the Church":   { voice: "Eve",  gender: "female" },
-    "The Skeptical Atheist":{ voice: "Rex",  gender: "male"   },
-  };
-
   app.get(api.personas.list.path, requireAuth, async (req, res) => {
     const userId = (req.user as any).id;
     let personas = await storage.listPersonas(userId);
@@ -135,27 +127,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       await storage.seedDefaultPersonas(userId);
       personas = await storage.listPersonas(userId);
     }
-    // Fix difficulty, voice, and gender for default personas that may have wrong values
+    // Fix difficulty for default personas that may have wrong values.
+    // Voice/gender are user-configurable and are intentionally not auto-corrected here.
     for (const persona of personas) {
       const expectedDifficulty = DEFAULT_PERSONA_DIFFICULTY[persona.name];
-      const expectedVoiceGender = DEFAULT_PERSONA_VOICE_GENDER[persona.name];
-      const updates: Record<string, any> = {};
       if (expectedDifficulty !== undefined && persona.difficulty !== expectedDifficulty) {
-        updates.difficulty = expectedDifficulty;
+        await storage.updatePersona(persona.id, { difficulty: expectedDifficulty });
         persona.difficulty = expectedDifficulty;
-      }
-      if (expectedVoiceGender) {
-        if (persona.voice !== expectedVoiceGender.voice) {
-          updates.voice = expectedVoiceGender.voice;
-          persona.voice = expectedVoiceGender.voice;
-        }
-        if (persona.gender !== expectedVoiceGender.gender) {
-          updates.gender = expectedVoiceGender.gender;
-          persona.gender = expectedVoiceGender.gender;
-        }
-      }
-      if (Object.keys(updates).length > 0) {
-        await storage.updatePersona(persona.id, updates);
       }
     }
     res.json(personas);
@@ -821,13 +799,6 @@ Always detect the user's language and respond naturally in that same language wh
     let persona = await storage.getPersona(conversation.personaId);
     if (!persona) {
       return res.status(404).json({ message: "Persona not found" });
-    }
-
-    // Auto-correct voice/gender for default personas before starting the session
-    const expectedVG = DEFAULT_PERSONA_VOICE_GENDER[persona.name];
-    if (expectedVG && (persona.voice !== expectedVG.voice || persona.gender !== expectedVG.gender)) {
-      await storage.updatePersona(persona.id, { voice: expectedVG.voice, gender: expectedVG.gender });
-      persona = { ...persona, voice: expectedVG.voice, gender: expectedVG.gender };
     }
 
     const apiKey = process.env.LIVEKIT_API_KEY;
