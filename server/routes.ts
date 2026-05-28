@@ -828,8 +828,13 @@ Always detect the user's language and respond naturally in that same language wh
     ]);
     const personaAttempts = allProgress.find(p => p.personaId === persona.id)?.attempts ?? 0;
 
+    // Derive gender from the voice (source of truth) so character names are always correct
+    // even if the gender field in the DB got out of sync with the chosen voice.
+    const MALE_VOICES = new Set(["Rex", "Leo", "Orion", "Vale"]);
+    const effectiveGender = MALE_VOICES.has(persona.voice) ? "male" : "female";
+
     // Inject character name as the first system message so the agent always uses the right name
-    const charName = getCharacterName(persona.name, persona.gender);
+    const charName = getCharacterName(persona.name, effectiveGender);
     const nameInstruction = { role: "system", content: `IMPORTANT: Your name is ${charName}. Always introduce yourself as ${charName}. Never refer to yourself by your persona type label ("${persona.name}"). Your name is ${charName}.` };
 
     // Only include past conversation memory when RESUMING (conversation already has messages).
@@ -848,11 +853,11 @@ Always detect the user's language and respond naturally in that same language wh
 
     const roomMetadata = JSON.stringify({
       personaName: persona.name,
-      characterName: getCharacterName(persona.name, persona.gender),
+      characterName: charName,
       personaDescription: persona.description,
       sessionMood,
       moodIndex,
-      personaVoice: persona.voice || genderToVoice(persona.gender ?? "female"),
+      personaVoice: persona.voice || genderToVoice(effectiveGender),
       conversionThreshold,
       conversationId: conversation.id,
       messages: messageHistory,
