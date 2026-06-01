@@ -657,6 +657,39 @@ No preamble, no explanation, just the suggestion.`;
     res.status(204).send();
   });
 
+  // One-off: manually credit a conversion for a user by name + persona name
+  app.post("/api/admin/credit-conversion", requireAdmin, async (req, res) => {
+    const { firstName, lastName, personaName } = req.body;
+    if (!firstName || !lastName || !personaName) {
+      return res.status(400).json({ message: "firstName, lastName, personaName required" });
+    }
+    // Find user by name
+    const allUsers = await storage.listAllUsers();
+    const user = allUsers.find(
+      (u) =>
+        u.firstName?.toLowerCase() === firstName.toLowerCase() &&
+        u.lastName?.toLowerCase() === lastName.toLowerCase()
+    );
+    if (!user) return res.status(404).json({ message: `User "${firstName} ${lastName}" not found` });
+
+    // Find their most recent conversation with that persona
+    const allConvs = await storage.listConversations(user.id);
+    const personaConvs = allConvs.filter((c) =>
+      c.personaName.toLowerCase().includes(personaName.toLowerCase())
+    );
+    if (personaConvs.length === 0) {
+      return res.status(404).json({ message: `No conversations found for persona matching "${personaName}"` });
+    }
+    const conv = personaConvs[personaConvs.length - 1]; // most recent
+    await storage.markConversationConverted(conv.id);
+    // Also update user progress with a passing score
+    const persona = await storage.getPersona(conv.personaId);
+    if (persona) {
+      await storage.upsertUserProgress(user.id, persona.id, 9, undefined);
+    }
+    return res.json({ ok: true, conversationId: conv.id, userId: user.id, personaName: conv.personaName, message: `Credited conversion for ${firstName} ${lastName}` });
+  });
+
   app.delete("/api/admin/conversations/all", requireAdmin, async (_req, res) => {
     await storage.deleteAllConversations();
     res.status(204).send();
