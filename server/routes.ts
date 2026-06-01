@@ -769,6 +769,18 @@ Always detect the user's language and respond naturally in that same language wh
     res.json({ token, url: livekitUrl, roomName });
   });
 
+  // --- Agent callback: mark conversation converted when sinner's prayer is detected ---
+  app.post("/api/agent/conversations/:id/mark-converted", async (req, res) => {
+    const secret = req.headers["x-agent-secret"];
+    if (!secret || secret !== process.env.GRACETALK_AGENT_SECRET) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const conversationId = Number(req.params.id);
+    await storage.markConversationConverted(conversationId);
+    logger.info?.(`[agent] Conversation ${conversationId} marked converted via prayer detection`);
+    res.status(200).json({ ok: true });
+  });
+
   // --- Agent callback (agent saves voice transcripts back to the DB) ---
   app.post("/api/agent/conversations/:id/messages", async (req, res) => {
     const secret = req.headers["x-agent-secret"];

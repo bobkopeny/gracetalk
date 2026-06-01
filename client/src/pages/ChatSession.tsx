@@ -39,11 +39,14 @@ export default function ChatSession() {
   const handleVoiceCallEnd = async () => {
     setCallActive(false);
     let lastCount = conversation?.messages?.length ?? 0;
-    for (let i = 0; i < 8; i++) {
+    // Poll up to 15 seconds for agent transcript saves to land in the DB.
+    // Wait at least 6 polls (9s) before breaking on stability — a quick prayer
+    // session might look stable early but the prayer text is still being saved.
+    for (let i = 0; i < 10; i++) {
       await new Promise((r) => setTimeout(r, 1500));
       const result = await refetch();
       const newCount = result.data?.messages?.length ?? 0;
-      if (newCount === lastCount && i >= 2) break;
+      if (newCount === lastCount && i >= 6) break;
       lastCount = newCount;
     }
     generateFeedback.mutate({ conversationId, moodIndex: moodIndexRef.current }, {

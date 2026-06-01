@@ -78,32 +78,53 @@ Never fake a change of heart early. Live the arc — don't announce it.
 IMPORTANT: When the conversation begins, YOU speak first with ONE brief greeting as your character. Do not wait for the user to speak first. After that initial greeting, ONLY respond when the user speaks to you. Never re-introduce yourself or re-greet mid-conversation."""
 
 
-def save_message_to_app(conversation_id: int, role: str, content: str) -> None:
-    """POST a voice transcript back to the GraceTalk app for persistent storage."""
+PRAYER_PHRASES = [
+    "lord jesus, i know that i am a sinner",
+    "i ask for your forgiveness",
+    "i believe you died for my sins",
+    "i turn from my sins and invite you",
+]
+
+def _call_app(url: str, payload: dict) -> None:
+    """POST JSON to the GraceTalk app with the agent secret header."""
     api_url = os.environ.get("GRACETALK_API_URL", "").rstrip("/")
     secret = os.environ.get("GRACETALK_AGENT_SECRET", "")
     if not api_url or not secret:
         return
+    data = json.dumps(payload).encode()
+    req = urllib.request.Request(
+        f"{api_url}{url}",
+        data=data,
+        headers={"Content-Type": "application/json", "X-Agent-Secret": secret},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=15) as r:
+        r.read()
+
+
+def save_message_to_app(conversation_id: int, role: str, content: str) -> None:
+    """POST a voice transcript back to the GraceTalk app for persistent storage."""
+    api_url = os.environ.get("GRACETALK_API_URL", "")
+    if not api_url:
+        return
 
     for attempt in range(3):
         try:
-            payload = json.dumps({"role": role, "content": content}).encode()
-            req = urllib.request.Request(
-                f"{api_url}/api/agent/conversations/{conversation_id}/messages",
-                data=payload,
-                headers={
-                    "Content-Type": "application/json",
-                    "X-Agent-Secret": secret,
-                },
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=15) as r:
-                r.read()
+            _call_app(f"/api/agent/conversations/{conversation_id}/messages", {"role": role, "content": content})
             return
         except Exception as exc:
             logger.warning("Failed to save message (attempt %d/3): %s", attempt + 1, exc)
             if attempt < 2:
                 import time; time.sleep(1)
+
+
+def mark_converted_in_app(conversation_id: int) -> None:
+    """Tell the app the persona prayed the sinner's prayer — mark as converted immediately."""
+    try:
+        _call_app(f"/api/agent/conversations/{conversation_id}/mark-converted", {})
+        logger.info("Marked conversation %s as converted (prayer detected)", conversation_id)
+    except Exception as exc:
+        logger.warning("Failed to mark conversion: %s", exc)
 
 
 class WitnessPersona(Agent):
@@ -155,6 +176,11 @@ class WitnessPersona(Agent):
         logger.info("on_agent_turn_completed: conv=%s text=%r", self._conversation_id, text)
         if self._conversation_id and text:
             save_message_to_app(self._conversation_id, "assistant", text)
+            # Detect the sinner's prayer and mark conversion immediately —
+            # don't wait for the client-side feedback generation to catch it.
+            lower = text.lower()
+            if any(phrase in lower for phrase in PRAYER_PHRASES):
+                mark_converted_in_app(self._conversation_id)
         self._last_saved_assistant = text
 
 
