@@ -21,6 +21,7 @@ from dotenv import load_dotenv
 from livekit.agents import (
     Agent,
     AgentSession,
+    ConversationItemAddedEvent,
     JobContext,
     WorkerOptions,
     cli,
@@ -168,12 +169,13 @@ class WitnessPersona(Agent):
             save_message_to_app(self._conversation_id, "user", text)
         self._last_saved_user = text
 
-    async def on_agent_turn_completed(
-        self, turn_ctx: agent_llm.ChatContext, new_message: agent_llm.ChatMessage
-    ) -> None:
-        """Called after the agent finishes speaking — save its transcript."""
-        text = new_message.text_content
-        logger.info("on_agent_turn_completed: conv=%s text=%r", self._conversation_id, text)
+    # NOTE: there is no `on_agent_turn_completed` hook on Agent as of livekit-agents 1.8 —
+    # it was removed in favor of the session-level "conversation_item_added" event, which
+    # also fires for interrupted (partial) assistant turns. See entrypoint() below, where
+    # WitnessPersona.save_assistant_turn is wired up as that event's handler.
+    def save_assistant_turn(self, text: str) -> None:
+        """Save the agent's spoken text and check for the sinner's prayer."""
+        logger.info("assistant turn added: conv=%s text=%r", self._conversation_id, text)
         if self._conversation_id and text:
             save_message_to_app(self._conversation_id, "assistant", text)
             # Detect the sinner's prayer and mark conversion immediately —
@@ -256,24 +258,30 @@ async def entrypoint(ctx: JobContext) -> None:
         ),
     )
 
-    await session.start(
-        room=ctx.room,
-        agent=WitnessPersona(
-            persona_name,
-            character_name,
-            persona_description,
-            session_mood,
-            conversation_id,
-            conversion_threshold=conversion_threshold,
-            chat_ctx=initial_ctx if prior_messages else None,
-        ),
+    witness = WitnessPersona(
+        persona_name,
+        character_name,
+        persona_description,
+        session_mood,
+        conversation_id,
+        conversion_threshold=conversion_threshold,
+        chat_ctx=initial_ctx if prior_messages else None,
     )
+
+    await session.start(room=ctx.room, agent=witness)
 
     logger.info("Agent session started for room: %s", ctx.room.name)
 
-    # NOTE: Transcripts are saved exclusively by WitnessPersona.on_user_turn_completed
-    # and on_agent_turn_completed above. No session-level handlers here — that was causing
-    # every message to be saved twice.
+    # NOTE: Transcripts are saved by WitnessPersona.on_user_turn_completed (user side,
+    # called directly by the framework) and by the "conversation_item_added" session
+    # event below (assistant side — on_agent_turn_completed was removed from the Agent
+    # base class in livekit-agents 1.8). Each fires exactly once per finalized item, so
+    # this does not double-save.
+    @session.on("conversation_item_added")
+    def _on_conversation_item_added(ev: ConversationItemAddedEvent) -> None:
+        if getattr(ev.item, "role", None) != "assistant":
+            return
+        witness.save_assistant_turn(ev.item.text_content)
 
     # Trigger the persona to greet the user first (system prompt already instructs agent to speak first)
     try:
