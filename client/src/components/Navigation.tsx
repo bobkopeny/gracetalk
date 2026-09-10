@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-import { LogOut, Users, LayoutDashboard, Shield, BookOpen, GraduationCap, BarChart2 } from "lucide-react";
+import { LogOut, Users, LayoutDashboard, Shield, BookOpen, GraduationCap, BarChart2, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -90,7 +90,7 @@ export function MobileNav() {
     { href: "/dashboard", label: "Home", icon: LayoutDashboard },
     { href: "/personas", label: "Personas", icon: Users },
     { href: "/training", label: "Training", icon: GraduationCap },
-    { href: "/my-stats", label: "Stats", icon: BarChart2 },
+    { href: "/history", label: "History", icon: History },
   ];
 
   return (

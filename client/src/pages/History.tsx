@@ -1,14 +1,16 @@
-import { useConversations } from "@/hooks/use-conversations";
+import { useConversations, useDeleteConversation, useDeleteAllConversations } from "@/hooks/use-conversations";
 import { Navigation, MobileHeader, MobileNav } from "@/components/Navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Calendar, MessageSquare, ArrowRight, BarChart2, CheckCircle2, PlayCircle, RefreshCw, ScrollText } from "lucide-react";
+import { Loader2, Calendar, MessageSquare, ArrowRight, BarChart2, CheckCircle2, PlayCircle, ScrollText, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
 export default function History() {
   const { data: conversations, isLoading } = useConversations();
+  const deleteOne = useDeleteConversation();
+  const deleteAll = useDeleteAllConversations();
 
   return (
     <div className="min-h-screen bg-muted/20 pb-20 md:pb-0">
@@ -17,9 +19,27 @@ export default function History() {
 
       <main className="md:pl-64">
         <div className="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8 animate-in">
-          <div className="mb-8">
-            <h1 className="text-3xl font-display font-bold text-foreground">Practice History</h1>
-            <p className="text-muted-foreground mt-1">Resume an in-progress session or review completed ones. To start fresh with any persona, go to <Link href="/personas" className="text-teal-600 underline underline-offset-2">Personas</Link>.</p>
+          <div className="mb-8 flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-display font-bold text-foreground">Practice History</h1>
+              <p className="text-muted-foreground mt-1">Resume an in-progress session or review completed ones. To start fresh with any persona, go to <Link href="/personas" className="text-teal-600 underline underline-offset-2">Personas</Link>.</p>
+            </div>
+            {(conversations?.length ?? 0) > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
+                disabled={deleteAll.isPending}
+                onClick={() => {
+                  if (confirm("Delete all conversations? Your level progress will not be affected.")) {
+                    deleteAll.mutate();
+                  }
+                }}
+              >
+                {deleteAll.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Trash2 className="w-3 h-3 mr-1" />}
+                Delete All
+              </Button>
+            )}
           </div>
 
           {isLoading ? (
@@ -119,6 +139,20 @@ export default function History() {
                             </Link>
                           </>
                         )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-1.5 rounded-xl w-full sm:w-auto text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                          disabled={deleteOne.isPending}
+                          onClick={() => {
+                            if (confirm("Delete this conversation? Your level progress will not be affected.")) {
+                              deleteOne.mutate(conv.id);
+                            }
+                          }}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          Delete
+                        </Button>
                       </div>
                     </div>
                   </Card>

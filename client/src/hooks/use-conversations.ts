@@ -92,6 +92,34 @@ export function useGenerateFeedback() {
   });
 }
 
+// Delete single conversation
+export function useDeleteConversation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/conversations/${id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Failed to delete conversation");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.conversations.list.path] });
+    },
+  });
+}
+
+// Delete all conversations for the current user
+export function useDeleteAllConversations() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/conversations", { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Failed to delete conversations");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.conversations.list.path] });
+    },
+  });
+}
+
 // User Progress
 export function useUserProgress() {
   return useQuery({
