@@ -72,7 +72,7 @@ You can also pray *for* someone without them present. Prayer is not passive — 
 - Pick a persona that represents someone in your life or a type you find difficult.
 - Have the full conversation — don't just give up when it gets hard.
 - After the session, read the feedback carefully. The coaching is specific to what you said and how this persona responded.
-- Use the Help button mid-conversation if you get stuck — it gives you a one-line tactical suggestion in real time.
+- Use the "Tap for a suggested response" button mid-conversation if you get stuck — it gives you a one-line tactical suggestion in real time.
 - Practice a persona repeatedly until you feel natural. Try different approaches.
 
 The goal isn't to memorize scripts — it's to become so familiar with the truth and with listening well that you can respond naturally in any conversation.`,

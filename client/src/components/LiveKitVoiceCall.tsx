@@ -244,6 +244,25 @@ function VoiceSession({
         )}
       </div>
 
+      {/* Suggested response button */}
+      {conversationId && (
+        <div className="bg-card border-t border-border px-4 py-2 flex justify-center shrink-0">
+          <Button
+            variant="outline"
+            className="gap-2 px-4"
+            onClick={handleHelp}
+            disabled={hintLoading}
+          >
+            {hintLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <HelpCircle className="w-4 h-4" />
+            )}
+            Tap for a suggested response
+          </Button>
+        </div>
+      )}
+
       {/* Help hint banner */}
       {hint && (
         <div className="bg-amber-50 border-t border-amber-200 px-4 py-3 flex items-start gap-3 shrink-0">
@@ -277,18 +296,6 @@ function VoiceSession({
                 Type
               </Button>
             )}
-            {conversationId && (
-              <Button
-                variant="outline"
-                className="gap-2 px-4"
-                onClick={handleHelp}
-                disabled={hintLoading}
-              >
-                {hintLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <HelpCircle className="w-4 h-4" />
-                )}
                 Help
               </Button>
             )}
