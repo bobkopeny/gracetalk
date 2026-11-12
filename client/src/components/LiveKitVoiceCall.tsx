@@ -296,9 +296,6 @@ function VoiceSession({
                 Type
               </Button>
             )}
-                Help
-              </Button>
-            )}
           </div>
           <p className="text-xs text-muted-foreground text-center">
             Speak naturally – or tap Type to write instead
